@@ -1,7 +1,7 @@
 // Requirements
 const fs = require('fs')
 const readlines = require('n-readlines')
-const csvWriter = require('csv-writer')
+const csvwriter = require('csv-writer')
 const express = require('express')
 
 const radixUniverse = require('radixdlt').radixUniverse
@@ -11,18 +11,23 @@ const RadixAccount = require('radixdlt').RadixAccount
 const RadixTransactionBuilder = require('radixdlt').RadixTransactionBuilder
 
 const app = express()
-const liner = new readlines('res/datasetFAKE.csv')
+const liner = new readlines('res/dataset.csv')
+const csvWriter = csvwriter.createObjectCsvWriter;
 // Initialize the (testing) universe
 radixUniverse.bootstrap(ALPHANET)
 const identityManager = new RadixIdentityManager()
 
 const PORT = 8000
-// const BUS_IDS = [ '110', '226', '371', '422', '426', '484', '512', '639', '650', '889' ]
 const BUS_IDS = [ '110', '226', '371', '422', '426', '484', '512', '639', '650', '889' ]
 const BUS_IDENTITIES = []
 const BUS_ACCOUNTS = []
 const MASTER_IDENTITY = identityManager.generateSimpleIdentity()
 const MASTER_ACCOUNT = MASTER_IDENTITY.account
+const APPLICATION_ID = 'radixdlt-iotsimulation'
+
+var statistics = []
+var submissionIndex = 0; // index of the last submitted atom to Radix
+var submittedIndex = 0; // index of the last successfully atom stored on Radix
 
 init()
 
@@ -32,7 +37,7 @@ function init() {
   MASTER_ACCOUNT.openNodeConnection()
 
   for (var i = 0; i < BUS_IDS.length; i++) {
-    // Create new bus account
+    // Create new bus account for each bus id
     BUS_IDENTITIES.push(identityManager.generateSimpleIdentity())
     BUS_ACCOUNTS.push(BUS_IDENTITIES[i].account)
     // Connect account to the network
@@ -44,139 +49,118 @@ function sleep(ms) {
   return new Promise(resolve => { setTimeout(resolve,ms) })
 }
 
+function submitAtom(busId, lat, lon) {
+  const busIndex = BUS_IDS.indexOf(row[1])
+
+  const payload = JSON.stringify({
+    message: 'Coordinates bus: ' + busId,
+    data: {
+      latitude: lat,
+      longitude: lon,
+      timestampISO: new Date().toISOString()
+    }
+  })
+
+  statistics[submissionIndex++].startTime = Date.now()
+  const transactionStatus = RadixTransactionBuilder
+                            .createPayloadAtom([BUS_ACCOUNTS[busIndex], MASTER_ACCOUNT], APPLICATION_ID, payload)
+                            .signAndSubmit(BUS_IDENTITIES[busIndex])
+
+  transactionStatus.subscribe({
+    next: status => {},
+    complete: () => {
+      console.log('SUCCESS: Transaction has been stored on the ledger')
+      var si = submittedIndex++
+      statistics[si].endTime = Date.now()
+      statistics[si].totTime = statistics[si].endTime - statistics[si].startTime
+    },
+    error: error => {
+      console.error('ERROR: Error submitting transaction', error)
+      var si = submittedIndex++
+      statistics[si].endTime = "ERROR"
+      statistics[si].totTime = "ERROR"
+    }
+  })
+}
 
 
 app.get('/run', (req, res) => {
-  try {
-    while (line = liner.next()) {
-      row = line.toString('ascii').split(',')
-      console.log('Waiting ' + row[0] + ' seconds for bus ' + row[1])
-      //await sleep(parseInt(row[0]) * 1000)
-    }
+  runTest()
 
-    console.log('Simulation completed')
-  } catch (error) {
-    console.log(error)
+  async function runTest() {
+    try {
+      var lineCounter = 0
+
+      liner.next() // get rid of header line
+      while (line = liner.next()) {
+        row = line.toString('ascii').split(',')
+        console.log('Waiting ' + row[0] + ' seconds for bus ' + row[1])
+        await sleep(parseInt(row[0]) * 1000)
+
+        statistics.push({
+          counter: lineCounter++,
+          startTime: -1,
+          endTime: -1,
+          totTime: -1
+        })
+        submitAtom(row[1], row[2], row[3])
+      }
+
+      res.send('Simulation completed')
+    } catch (error) {
+      console.error(error)
+    }
   }
 })
 
-// TODO: inviare messaggi (atomi customizzati?) al master da parte dei bus
-
-/*
-Atomo generico
-
-const applicationId = 'my-test-app'
-
-const payload = JSON.stringify({
-  message: 'Hello World!',
-  otherData: 123
-})
-
-const transactionStatus = RadixTransactionBuilder
-  .createPayloadAtom([myAccount, toAccount], applicationId, payload)
-  .signAndSubmit(myIdentity)
-*/
-
-
-
-
-
-
-/*const radixUniverse = require('radixdlt').radixUniverse
-const ALPHANET = require('radixdlt').RadixUniverse.ALPHANET
-const RadixIdentityManager = require('radixdlt').RadixIdentityManager
-const RadixAccount = require('radixdlt').RadixAccount
-const RadixTransactionBuilder = require('radixdlt').RadixTransactionBuilder
-
-// Initialize the (testing) universe
-radixUniverse.bootstrap(ALPHANET)
-const identityManager = new RadixIdentityManager()
-
-// Create Alice account
-const aliceIdentity = identityManager.generateSimpleIdentity()
-const aliceAccount = aliceIdentity.account
-// Connect the account to the network
-aliceAccount.openNodeConnection()
-
-// Create Alice account
-const bobIdentity = identityManager.generateSimpleIdentity()
-const bobAccount = bobIdentity.account
-// Connect the account to the network
-bobAccount.openNodeConnection()
-
-console.log('Alice\'s address: ', aliceAccount.getAddress())
-console.log('Bob\'s address: ', bobAccount.getAddress())
-
-// Subscribe for any new incoming message
-aliceAccount.messagingSystem.getAllMessages().subscribe(messageUpdate => {
-  console.log(messageUpdate)
-})
-
-bobAccount.messagingSystem.getAllMessages().subscribe(messageUpdate => {
-  console.log(messageUpdate)
-})
-
-
-
 app.get('/', (req, res) => {
-  const data = 'Alice\'s address is ' + aliceAccount.getAddress() +
-  '<br/>Bob\'s address is ' + bobAccount.getAddress()
+  const busAddresses = 'MASTER address: ' + MASTER_ACCOUNT.getAddress() + '<br/><br/>'
+  for (var i = 0; i < BUS_ACCOUNTS.length; i++)
+    busAddresses += 'Bus ID: ' + BUS_IDS[i] + ' - Address: ' + BUS_ACCOUNTS[i].getAddress() + '<br/>'
 
-  res.send(data)
+  res.send(busAddresses)
 })
 
-// Send messages
-app.get('/AtoB', (req, res) => {
-  const message = 'Hi, I\'m Alice!'
+// List of messages to Master in receving order
+app.get('/getData', (req, res) => {
+  res.send(MASTER_ACCOUNT.dataSystem.applicationData.get(APPLICATION_ID))
+})
 
-  console.log(Date.now())
-  const messageStatus = RadixTransactionBuilder
-                            .createRadixMessageAtom(aliceAccount, bobAccount, message)
-                            .signAndSubmit(aliceIdentity)
+// List of messages to Master in receving order
+app.get('/stats', (req, res) => {
+  var slowest = -1;
+  var fastest = 100000000;
 
-  messageStatus.subscribe({
-    next: status => {
-      // console.log(status)
-      // For a valid transaction, this will print, 'FINDING_NODE', 'GENERATING_POW', 'SIGNING', 'STORE', 'STORED'
-    },
-    complete: () => {
-      console.log('SUCCESS: Transaction has been stored on the ledger')
-      console.log(Date.now())
-    },
-    error: error => { console.error('Error submitting transaction', error) }
+  var stats = '<table style="width:30%" cellpadding="10"><tr> <th>Id</th> <th>Start time</th> <th>End time</th> <th>Total time</th> </tr>'
+  for (var i = 0; i < statistics.length; i++) {
+    stats +=  '<tr> ' +
+              '<td>' + statistics[i].counter + '</td> ' +
+              '<td>' + statistics[i].startTime + '</td> ' +
+              '<td>' + statistics[i].endTime + '</td> ' +
+              '<td>' + statistics[i].totTime + '</td> </tr>'
+    if(statistics[i].totTime > slowest)
+      slowest = statistics[i].totTime
+    if(statistics[i].totTime < fastest)
+      fastest = statistics[i].totTime
+  }
+
+  stats += '</table>'
+
+  stats += '<br/><br/> <table style="width:30%"><tr> <th>Fastest time</th> <th>Slowest time</th> </tr>'
+  stats += '<tr> <td>' + fastest + '</td> <td>' + slowest + '</td> </tr>'
+
+  // Print out CVS file with statistics results
+  const writer = csvWriter({
+    path: 'res/output.csv',
+    header: [
+        { id: 'counter', title: 'Counter' },
+        { id: 'startTime', title: 'Start time' },
+        { id: 'endTime', title: 'End time' },
+        { id: 'totTime', title: 'Total time' }
+    ]
   })
+
+  writer.writeRecords(statistics).then(() => { res.send(stats) })
 })
-
-app.get('/BtoA', (req, res) => {
-  const message = 'Hi, I\'m Bob!'
-
-  console.log(Date.now())
-  const messageStatus = RadixTransactionBuilder
-                            .createRadixMessageAtom(bobAccount, aliceAccount, message)
-                            .signAndSubmit(bobIdentity)
-
-  messageStatus.subscribe({
-    next: status => {
-      // console.log(status)
-      // For a valid transaction, this will print, 'FINDING_NODE', 'GENERATING_POW', 'SIGNING', 'STORE', 'STORED'
-    },
-    complete: () => {
-      console.log('SUCCESS: Transaction has been stored on the ledger')
-      console.log(Date.now())
-    },
-    error: error => { console.error('Error submitting transaction', error) }
-  })
-})
-
-// Radix chat messages grouped by the other address
-app.get('/chats', (req, res) => {
-  res.send(aliceAccount.messagingSystem.chats)
-})
-
-// A list of Radix chat messages in the order of receivng them
-app.get('/messages', (req, res) => {
-  res.send(aliceAccount.messagingSystem.messages)
-})*/
-
 
 app.listen(PORT, () => console.log(`Example app listening on port ${PORT}!`))
