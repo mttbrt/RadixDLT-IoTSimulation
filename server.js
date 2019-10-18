@@ -3,12 +3,13 @@ const fs = require('fs')
 const readlines = require('n-readlines')
 const csvwriter = require('csv-writer')
 const express = require('express')
+const radixdlt = require('radixdlt')
 
-const radixUniverse = require('radixdlt').radixUniverse
-const ALPHANET = require('radixdlt').RadixUniverse.ALPHANET
-const RadixIdentityManager = require('radixdlt').RadixIdentityManager
-const RadixAccount = require('radixdlt').RadixAccount
-const RadixTransactionBuilder = require('radixdlt').RadixTransactionBuilder
+const radixUniverse = radixdlt.radixUniverse
+const ALPHANET = radixdlt.RadixUniverse.ALPHANET
+const RadixIdentityManager = radixdlt.RadixIdentityManager
+const RadixAccount = radixdlt.RadixAccount
+const RadixTransactionBuilder = radixdlt.RadixTransactionBuilder
 
 const app = express()
 const liner = new readlines('res/dataset.csv')
@@ -62,10 +63,17 @@ function submitAtom(busId, lat, lon) {
   })
 
   statistics[submissionIndex++].startTime = Date.now()
-  const transactionStatus = RadixTransactionBuilder
-                            .createPayloadAtom([BUS_ACCOUNTS[busIndex], MASTER_ACCOUNT], APPLICATION_ID, payload)
-                            .signAndSubmit(BUS_IDENTITIES[busIndex])
 
+  var transactionStatus
+  try {
+    transactionStatus = RadixTransactionBuilder
+                              .createPayloadAtom([BUS_ACCOUNTS[busIndex], MASTER_ACCOUNT], APPLICATION_ID, payload)
+                              .signAndSubmit(BUS_IDENTITIES[busIndex])
+  } catch(error) {
+    // TODO Far stampare -1 nell'output
+  }
+
+  // TODO gestire anche la callback per il tempo di inizio del PoW
   transactionStatus.subscribe({
     next: status => {},
     complete: () => {
