@@ -1,18 +1,16 @@
 // Requirements
 const fs = require('fs')
 const readlines = require('n-readlines')
-const csvwriter = require('csv-writer')
 const radixdlt = require('radixdlt')
 
 // Initialize the testing Universe
-radixdlt.radixUniverse.bootstrap(radixdlt.RadixUniverse.ALPHANET)
+const Universe = radixdlt.radixUniverse
+Universe.bootstrap(radixdlt.RadixUniverse.ALPHANET)
 
 const RadixIdentityManager = radixdlt.RadixIdentityManager
-const RadixAccount = radixdlt.RadixAccount
 const RadixTransactionBuilder = radixdlt.RadixTransactionBuilder
 
 const csvReader = new readlines('res/dataset0.csv')
-const csvWriter = csvwriter.createObjectCsvWriter
 const identityManager = new RadixIdentityManager()
 
 const BUS_IDS = [ '110', '226', '371', '422', '426', '484', '512', '639', '650', '889' ]
@@ -22,26 +20,30 @@ const MASTER_IDENTITY = identityManager.generateSimpleIdentity()
 const MASTER_ACCOUNT = MASTER_IDENTITY.account
 const APPLICATION_ID = 'radixdlt-iotsimulation'
 
-var statistics = []
-
-
+var dir
 
 // ------------ INIT ------------
 
-// Connect master to the network
-MASTER_ACCOUNT.openNodeConnection()
+async function init() {
+  // Connect master to the network
+  MASTER_ACCOUNT.openNodeConnection()
 
-for (var i = 0; i < BUS_IDS.length; i++) {
-  // Create new bus account for each bus id
-  BUS_IDENTITIES.push(identityManager.generateSimpleIdentity())
-  BUS_ACCOUNTS.push(BUS_IDENTITIES[i].account)
-  // Connect the bus account to the network
-  BUS_ACCOUNTS[i].openNodeConnection()
+  for (var i = 0; i < BUS_IDS.length; i++) {
+    // Create new bus account for each bus id
+    BUS_IDENTITIES.push(identityManager.generateSimpleIdentity())
+    BUS_ACCOUNTS.push(BUS_IDENTITIES[i].account)
+    // Connect the bus account to the network
+    BUS_ACCOUNTS[i].openNodeConnection()
+  }
+
+  // Create stats folder
+  dir = 'res/' + new Date().toISOString()
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir)
 }
 
 // ------------ RUN TEST ------------
 
-const run = async () => {
+async function run() {
   try {
     var lineCounter = 0
 
@@ -49,31 +51,16 @@ const run = async () => {
     while (line = csvReader.next()) {
       row = line.toString('ascii').split(',')
       console.log('Waiting ' + row[0] + ' seconds for bus ' + row[1])
-      await sleep(parseInt(row[0]) * 1000)
 
-      statistics.push({
-        counter: lineCounter++,
-        startTime: -1,
-        powTime: -1,
-        endTime: -1,
-        totTime: -1,
-        powExecTime: -1,
-        latencyTime: -1
-      })
-      submitAtom(lineCounter-1, row[1], row[2], row[3])
+      await sleep(parseInt(row[0]) * 1000)
+      submitAtom(lineCounter++, row[1], row[2], row[3])
     }
 
-    console.log('SIMULATION COMPLETED')
-
-    // Print out results
-    await sleep(4000) // Wait for the last pending submitted atoms
-    printResults()
-    console.log('Test results printed out')
+    console.log('SIMULATION COMPLETED! Stats in: ' + dir)
   } catch (error) {
     console.error(error)
   }
 }
-run()
 
 function sleep(ms) {
   return new Promise(res => { setTimeout(res, ms) })
@@ -91,50 +78,70 @@ async function submitAtom(lineCounter, busId, lat, lon) {
     }
   })
 
-  statistics[lineCounter].startTime = Date.now()
+  timeStats = {
+    counter: lineCounter,
+    startTime: -1,
+    powTime: -1,
+    endTime: -1,
+    totTime: -1,
+    powExecTime: -1,
+    latencyTime: -1
+  }
 
   var transactionStatus = null
   try {
+    timeStats.startTime = Date.now()
     transactionStatus = RadixTransactionBuilder
                         .createPayloadAtom([BUS_ACCOUNTS[busIndex], MASTER_ACCOUNT], APPLICATION_ID, payload)
                         .signAndSubmit(BUS_IDENTITIES[busIndex])
   } catch(error) {
-    console.error('An error occured while building transaction')
+    console.error('ERROR: Error occured while building transaction')
   }
 
   transactionStatus.subscribe({
     next: status => {
-      if(status == 'GENERATING_POW') statistics[lineCounter].powTime = Date.now()
+      if(status == 'GENERATING_POW') timeStats.powTime = Date.now()
     },
     complete: () => {
+      timeStats.endTime = Date.now()
+      timeStats.totTime = timeStats.endTime - timeStats.startTime
+      timeStats.powExecTime = timeStats.endTime - timeStats.powTime
+      timeStats.latencyTime = timeStats.totTime - timeStats.powExecTime
+
       console.log('SUCCESS: Transaction has been stored on the ledger')
-      statistics[lineCounter].endTime = Date.now()
-      statistics[lineCounter].totTime = statistics[lineCounter].endTime - statistics[lineCounter].startTime
-      statistics[lineCounter].powExecTime = statistics[lineCounter].endTime - statistics[lineCounter].powTime
-      statistics[lineCounter].latencyTime = statistics[lineCounter].totTime - statistics[lineCounter].powExecTime
+      printResults(timeStats)
     },
     error: error => {
-      console.error('ERROR: Error submitting transaction', error)
+      console.error('ERROR: Error submitting transaction')
+      printResults(timeStats)
     }
   })
 }
 
-function printResults() {
-  const writer = csvWriter({
-    path: 'res/output' + process.argv[2] + '.csv',
-    header: [
-        { id: 'counter', title: 'Counter' },
-        { id: 'startTime', title: 'Start time' },
-        { id: 'powTime', title: 'POW time' },
-        { id: 'endTime', title: 'End time' },
-        { id: 'totTime', title: 'Start to End time' },
-        { id: 'powExecTime', title: 'POW execution time' },
-        { id: 'latencyTime', title: 'Latency time' }
-    ]
-  })
+function printResults(obj) {
+  const stringifyObj =  obj.counter + ', ' +
+                        obj.startTime + ', ' +
+                        obj.powTime + ', ' +
+                        obj.endTime + ', ' +
+                        obj.totTime + ', ' +
+                        obj.powExecTime + ', ' +
+                        obj.latencyTime + '\n'
 
-  writer.writeRecords(statistics).then(() => { console.log('Statistics printed out') })
+  fs.appendFileSync(
+    dir + '/output.csv',
+    stringifyObj
+  )
 }
 
-// List of messages sent to Master in receving order
-// MASTER_ACCOUNT.dataSystem.applicationData.get(APPLICATION_ID)
+// ------------ MAIN ------------
+
+async function main() {
+  await sleep(1500)
+  await init()
+  await sleep(1500)
+  await run()
+  await sleep(3000)
+  process.exit()
+}
+
+main()
