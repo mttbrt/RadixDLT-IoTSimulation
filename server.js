@@ -22,6 +22,7 @@ const APPLICATION_ID = 'radixdlt-iotsimulation'
 
 var dir
 
+
 // ------------ INIT ------------
 
 async function init() {
@@ -56,17 +57,13 @@ async function run() {
       submitAtom(lineCounter++, row[1], row[2], row[3])
     }
 
-    console.log('SIMULATION COMPLETED! Stats in: ' + dir)
+    console.log('SIMULATION COMPLETED! Outputs in: ' + dir)
   } catch (error) {
     console.error(error)
   }
 }
 
-function sleep(ms) {
-  return new Promise(res => { setTimeout(res, ms) })
-}
-
-async function submitAtom(lineCounter, busId, lat, lon) {
+async function submitAtom(counter, busId, lat, lon) {
   const busIndex = BUS_IDS.indexOf(row[1])
 
   const payload = JSON.stringify({
@@ -79,7 +76,7 @@ async function submitAtom(lineCounter, busId, lat, lon) {
   })
 
   timeStats = {
-    counter: lineCounter,
+    counter: counter,
     startTime: -1,
     powTime: -1,
     endTime: -1,
@@ -116,6 +113,10 @@ async function submitAtom(lineCounter, busId, lat, lon) {
       printResults(timeStats)
     }
   })
+}
+
+function sleep(ms) {
+  return new Promise(res => { setTimeout(res, ms) })
 }
 
 function printResults(obj) {
