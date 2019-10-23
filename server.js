@@ -75,7 +75,7 @@ async function submitAtom(counter, busId, lat, lon) {
     }
   })
 
-  timeStats = {
+  const timeStats = {
     counter: counter,
     startTime: -1,
     powTime: -1,
@@ -95,7 +95,7 @@ async function submitAtom(counter, busId, lat, lon) {
     console.error('ERROR: Error occured while building transaction')
   }
 
-  transactionStatus.subscribe({
+  const subscription = transactionStatus.subscribe({
     next: status => {
       if(status == 'GENERATING_POW') timeStats.powTime = Date.now()
     },
@@ -105,10 +105,12 @@ async function submitAtom(counter, busId, lat, lon) {
       timeStats.powExecTime = timeStats.endTime - timeStats.powTime
       timeStats.latencyTime = timeStats.totTime - timeStats.powExecTime
 
+      subscription.unsubscribe()
       console.log('SUCCESS: Transaction has been stored on the ledger')
       printResults(timeStats)
     },
     error: error => {
+      subscription.unsubscribe()
       console.error('ERROR: Error submitting transaction')
       printResults(timeStats)
     }
