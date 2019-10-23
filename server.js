@@ -46,15 +46,13 @@ async function init() {
 
 async function run() {
   try {
-    var lineCounter = 0
-
     csvReader.next() // get rid of header line
     while (line = csvReader.next()) {
       row = line.toString('ascii').split(',')
       console.log('Waiting ' + row[0] + ' seconds for bus ' + row[1])
 
       await sleep(parseInt(row[0]) * 1000)
-      submitAtom(lineCounter++, row[1], row[2], row[3])
+      submitAtom(row[4], row[1], row[2], row[3])
     }
 
     console.log('SIMULATION COMPLETED! Outputs in: ' + dir)
