@@ -10,7 +10,7 @@ Universe.bootstrap(radixdlt.RadixUniverse.ALPHANET)
 const RadixIdentityManager = radixdlt.RadixIdentityManager
 const RadixTransactionBuilder = radixdlt.RadixTransactionBuilder
 
-const csvReader = new readlines('res/dataset0.csv')
+const csvReader = new readlines('data/input/dataset0.csv')
 const identityManager = new RadixIdentityManager()
 
 const BUS_IDS = [ '110', '226', '371', '422', '426', '484', '512', '639', '650', '889' ]
@@ -38,7 +38,7 @@ async function init() {
   }
 
   // Create stats folder
-  dir = 'res/' + new Date().toISOString()
+  dir = 'data/output/' + new Date().toISOString()
   if (!fs.existsSync(dir)) fs.mkdirSync(dir)
 }
 
@@ -107,12 +107,12 @@ async function submitAtom(counter, busId, lat, lon) {
 
       subscription.unsubscribe()
       console.log('SUCCESS: Transaction has been stored on the ledger')
-      printResults(timeStats)
+      printResults(timeStats, busId)
     },
     error: error => {
       subscription.unsubscribe()
       console.error('ERROR: Error submitting transaction')
-      printResults(timeStats)
+      printResults(timeStats, busId)
     }
   })
 }
@@ -121,7 +121,7 @@ function sleep(ms) {
   return new Promise(res => { setTimeout(res, ms) })
 }
 
-function printResults(obj) {
+function printResults(obj, bus) {
   const stringifyObj =  obj.counter + ', ' +
                         obj.startTime + ', ' +
                         obj.powTime + ', ' +
@@ -131,7 +131,7 @@ function printResults(obj) {
                         obj.latencyTime + '\n'
 
   fs.appendFileSync(
-    dir + '/output.csv',
+    dir + '/bus-' + bus + '.csv',
     stringifyObj
   )
 }
