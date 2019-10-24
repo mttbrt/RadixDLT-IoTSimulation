@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <h1 class="title">Welcome to Radflix</h1>
-<center>
+<center>    
   <table class="table is-responsive">
     <thead>
       <tr>
@@ -28,8 +28,8 @@
       </tr>
     </tbody>
   </table>
-</center>
-  </div>
+</center>      
+  </div>  
 </template>
 
 <script lang="ts">
@@ -42,7 +42,8 @@ export default Vue.extend({
     return {
       movies: [],
       myMovies: {} as {[tokenUri: string]: string},
-      tokenSubscription: null
+
+      tokenSubscription: null,
     }
   },
   name: 'movie-list',
@@ -61,7 +62,7 @@ export default Vue.extend({
   methods: {
     loadAllMovies() {
       this.$http.get('http://localhost:3001/movies').then((response) => {
-          this.movies = response.data
+        this.movies = response.body
       })
     },
     updateSubscription() {
@@ -80,7 +81,7 @@ export default Vue.extend({
           }
         })
       }
-
+      
     },
     buy(tokenUri: string) {
       this.$http.post('http://localhost:3001/admin/buy-movie',{

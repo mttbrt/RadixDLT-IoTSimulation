@@ -33,7 +33,6 @@ connectDb()
 })
 
 
-
 // Store and recover account
 const identityManager = new RadixIdentityManager()
 const keystorePath = 'keystore.json'
@@ -41,7 +40,7 @@ const keystorePassword = `don't tell anyone :P`
 async function loadIdentity() {
   if (fs.existsSync(keystorePath)) {
     // Load account
-    const contents = await fs.readJSON(keystorePath)
+    const contents = await fs.readJSON(keystorePath)  
     const address = await RadixKeyStore.decryptKey(contents, keystorePassword)
 
     const identity = identityManager.addSimpleIdentity(address)
@@ -61,6 +60,7 @@ async function loadIdentity() {
     return identity
   }
 }
+
 
 
 
@@ -91,12 +91,13 @@ const getAccount = async function(address: string) {
 
 
 
+
+
 app.get('/', (req, res) => res.send(`Hi`))
 
 
-
-// // ------------ ROUTES ------------
-// Movies Reqeust
+// Routes
+// Access Reqeust
 app.get('/movies', async (req, res) => {
   models.Movie.find({}, '-contentUrl', (err, movies) => {
     if (err) {
@@ -108,133 +109,136 @@ app.get('/movies', async (req, res) => {
   })
 })
 
+
 // Access Reqeust
-app.get('/request-access', async (req, res) => {
-  const id = uuidv4()
-  const request = new models.AccessRequest({
-    id,
-    consumed: false,
+  app.get('/request-access', async (req, res) => {
+    const id = uuidv4()
+    const request = new models.AccessRequest({
+      id,
+      consumed: false,
+    })
+
+    await request.save()
+
+    res.send(id)
   })
 
-  await request.save()
-
-  res.send(id)
-})
-
 // Access a resource (signed(address, challenge), tokenId)
-app.post('/movie', async (req, res) => {
-  console.log('Requesting access to movie')
-  const serializedAtom = req.body.atom
-  const movieTokenUri = req.body.movieTokenUri
+  app.post('/movie', async (req, res) => {
+    console.log('Requesting access to movie')
+    const serializedAtom = req.body.atom
+    const movieTokenUri = req.body.movieTokenUri
 
-  const atom = RadixSerializer.fromJSON(serializedAtom) as RadixAtom
-  const particle = atom.getFirstParticleOfType(RadixMessageParticle)
-  const from = particle.from
-  const data = particle.getData().asJSON()
+    const atom = RadixSerializer.fromJSON(serializedAtom) as RadixAtom
+    const particle = atom.getFirstParticleOfType(RadixMessageParticle)
+    const from = particle.from
+    const data = particle.getData().asJSON()
 
-  // Check signature
-  if (!from.verify(atom.getHash(), atom.signatures[from.getUID().toString()])) {
-    res.status(400).send('Signature verification failed')
-    throw new Error('Signature verification failed')
-  }
+    // Check signature
+    if (!from.verify(atom.getHash(), atom.signatures[from.getUID().toString()])) {
+      res.status(400).send('Signature verification failed')
+      throw new Error('Signature verification failed')
+    }
 
-  console.log('Signature ok')
+    console.log('Signature ok')
 
-  const query = {
-    id: data.challenge
-  }
+    const query = {
+      id: data.challenge
+    }
 
-  // Check challenge
-  const document = await models.AccessRequest.findOne(query).exec()
-  if (!document || document.get('consumed')) {
-    res.status(400).send('Invalid challenge')
-    throw new Error('Invalid challenge')
-  }
+    // Check challenge
+    const document = await models.AccessRequest.findOne(query).exec()
+    if (!document || document.get('consumed')) {
+      res.status(400).send('Invalid challenge')
+      throw new Error('Invalid challenge')
+    }
 
-  console.log('challenge ok')
+    console.log('challenge ok')
 
-  document.set('consumed', true)
-  await document.save()
-
-
-  // Check ownership
-  const account = await getAccount(from.toString())
-  console.log('got synced account')
-  const balance = account.transferSystem.balance
-  console.log(balance)
-
-  // If don't have any movie tokens
-  if(!(movieTokenUri in balance) || balance[movieTokenUri].ltn(1)) {
-    res.status(400).send(`Don't own the movie`)
-    throw new Error(`Don't own the movie`)
-  }
-
-  console.log('movie owned')
-
-  const movie = await models.Movie.findOne({
-    tokenUri: movieTokenUri
-  }).exec()
-
-  if(!movie) {
-    res.status(400).send(`Movie doesn't exist`)
-    throw new Error(`Movie doesn't exist`)
-  }
-
-  res.send(movie)
-})
+    document.set('consumed', true)
+    await document.save()
 
 
+    // Check ownership
+    const account = await getAccount(from.toString())
+    console.log('got synced account')
+    const balance = account.transferSystem.balance
+    console.log(balance)
 
-// ------------ ADMIN ------------
-// Add a movie
-app.post('/admin/movie', async (req, res) => {
-  // Create token
-  const name = req.param('name')
-  const symbol = req.param('symbol')
-  const description = req.param('description')
-  const posterUrl = req.param('posterUrl')
-  const contentUrl = req.param('contentUrl')
-  const price = req.param('price') ? parseFloat(req.param('price')) : 1
+    // If don't have any movie tokens
+    if(!(movieTokenUri in balance) || balance[movieTokenUri].ltn(1)) {
+      res.status(400).send(`Don't own the movie`)
+      throw new Error(`Don't own the movie`)
+    }
 
-  const uri = new RRI(identity.address, symbol)
+    console.log('movie owned')
 
-  try {
-    new RadixTransactionBuilder().createTokenMultiIssuance(
-      identity.account,
-      name,
-      symbol,
-      description,
-      1,
-      1,
-      posterUrl,
-    ).signAndSubmit(identity)
-    .subscribe({
-      next: status => {
-        console.log(status)
-      },
-      complete:  async () => {
-        // Create DB entry
-        const movie = new models.Movie({
-          tokenUri: uri.toString(),
-          name,
-          description,
-          price,
-          posterUrl,
-          contentUrl,
-        })
+    const movie = await models.Movie.findOne({
+      tokenUri: movieTokenUri
+    }).exec()
 
-        await movie.save()
+    if(!movie) {
+      res.status(400).send(`Movie doesn't exist`)
+      throw new Error(`Movie doesn't exist`)
+    }
 
-        res.send(uri)
-      }, error: (e) => {
-        console.log(e)
-        res.status(400).send(e)
-      }
-    })
-  } catch(e) {
-    res.status(400).send(e.message)
-  }
-})
+    res.send(movie)
+  })
+
+
+
+
+// Admin
+  // Add a movie
+  app.post('/admin/movie', async (req, res) => {
+    // Create token
+    const name = req.param('name')
+    const symbol = req.param('symbol')
+    const description = req.param('description')
+    const posterUrl = req.param('posterUrl')
+    const contentUrl = req.param('contentUrl')
+    const price = req.param('price') ? parseFloat(req.param('price')) : 1
+
+    const uri = new RRI(identity.address, symbol)
+
+    try {
+      new RadixTransactionBuilder().createTokenMultiIssuance(
+        identity.account,
+        name,
+        symbol,
+        description,
+        1,
+        1,
+        posterUrl,
+      ).signAndSubmit(identity)
+      .subscribe({
+        next: status => {
+          console.log(status)
+        },
+        complete:  async () => {
+          // Create DB entry
+          const movie = new models.Movie({
+            tokenUri: uri.toString(),
+            name,
+            description,
+            price,
+            posterUrl,
+            contentUrl,
+          })
+
+          await movie.save()
+
+          res.send(uri)
+        }, error: (e) => {
+          console.log(e)
+          res.status(400).send(e)
+        }
+      })
+    } catch(e) {
+      res.status(400).send(e.message)
+    }
+  })
+
 
 // Buying a movie
 function subscribeForPurchases() {
@@ -293,26 +297,27 @@ function subscribeForPurchases() {
   })
 }
 
-// Add a movie
-app.post('/admin/buy-movie', (req, res) => {
-  // Create token
-  const tokenUri = req.body.tokenUri
-  const address = req.body.address
 
-  const purchaser = RadixAccount.fromAddress(address)
+  // Add a movie
+  app.post('/admin/buy-movie', (req, res) => {
+    // Create token
+    const tokenUri = req.body.tokenUri
+    const address = req.body.address
 
-  // Mint a new movie token
-  RadixTransactionBuilder.createMintAtom(identity.account, tokenUri, 1)
-  .signAndSubmit(identity)
-  .subscribe({complete: () => {
-    // Send the movie token
-    RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenUri, 1)
-      .signAndSubmit(identity)
-      .subscribe({
-        complete: () => {
-          console.log('Movie was purchased')
-          res.send('Done')
-        }
-      })
-  }})
-})
+    const purchaser = RadixAccount.fromAddress(address)
+
+    // Mint a new movie token
+    RadixTransactionBuilder.createMintAtom(identity.account, tokenUri, 1)
+    .signAndSubmit(identity)
+    .subscribe({complete: () => {
+      // Send the movie token
+      RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenUri, 1)
+        .signAndSubmit(identity)
+        .subscribe({
+          complete: () => {
+            console.log('Movie was purchased')
+            res.send('Done')
+          }
+        })
+    }})
+  })

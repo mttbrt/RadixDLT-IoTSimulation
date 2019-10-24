@@ -10,7 +10,7 @@
   "dependencies": {
     "buefy": "^0.7.8",
     "core-js": "^2.6.5",
-    "radixdlt": "^2.0.0-beta.1",
+    "radixdlt": "git://github.com/radixdlt/radixdlt-js.git#rc/betanet",
     "vue": "^2.6.10",
     "vue-resource": "^1.5.1",
     "vue-router": "^3.0.3",

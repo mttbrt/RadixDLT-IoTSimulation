@@ -5,6 +5,3 @@
 wait
 ./scripts/start_mongo.sh
 wait
-
-cd server/
-nodemon
