@@ -14,6 +14,6 @@
     "radixdlt": "^1.0.9-alpha"
   },
   "scripts": {
-    "server": "node server.js"
+    "server": "node testing.js"
   }
 }

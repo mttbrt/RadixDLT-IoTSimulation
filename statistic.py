@@ -2,6 +2,8 @@ import os
 import csv
 import numpy as np
 import scipy.stats
+import matplotlib.pyplot as plt
+plt.style.use('seaborn-whitegrid')
 
 
 def mean_confidence_interval(data, confidence=0.95):
@@ -24,6 +26,9 @@ tipsData = []
 tipsDataSTD = []
 powsData = []
 powsDataSTD = []
+
+plotData = {}
+
 
 path = os.walk(startingDir)
 next(path)
@@ -50,6 +55,12 @@ for directory in path:
                     tempTestData['powValue'].append(powValue)
                     tempTestData['tipsValue'].append(tipsValue)
                     allLatencies.append(tipsValue+powValue)
+
+                    latence = fin - srt
+                    if latence in plotData.keys():
+                        plotData[latence] += 1
+                    else:
+                        plotData[latence] = 1
         csvFile.close()
 
     errorsNotWritten = totalRequests - \
@@ -60,5 +71,17 @@ for directory in path:
     singleTestData.append(tempTestData)
 
 print('Avg= ' + str(round(np.mean(allLatencies), 4)))
-print('Err%= ' + str(round((allErrors / (totalRequests * len(singleTestData))), 4)))
+print('Err= ' + str(100 * round((allErrors / (totalRequests * len(singleTestData))), 4)) + '%')
 print(mean_confidence_interval(allLatencies))
+
+fig = plt.figure()
+ax = plt.axes()
+
+sortedData = {}
+for k, v in sorted(plotData.items()):
+    sortedData[k] = v
+
+mean = int(round(np.mean(allLatencies), 4))
+plt.plot(range(len(sortedData)), list(sortedData.values()), color='#b42526')
+plt.axvline(x = mean, color='#252525')
+plt.show()
