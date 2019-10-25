@@ -8,16 +8,16 @@
   <div v-else class="home">
     <h1>{{movie.name}}</h1>
 
-    <video v-if="movie.contentUrl.includes('.mp4')" 
+    <video v-if="movie.contentUrl.includes('.mp4')"
       :src="movie.contentUrl" controls autoplay loop>
     </video>
     <div v-else class="videoWrapper">
-      <iframe 
-        width="560" 
-        height="315" 
-        :src="movie.contentUrl + '?&autoplay=1'" 
-        frameborder="0" 
-        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
+      <iframe
+        width="560"
+        height="315"
+        :src="movie.contentUrl + '?&autoplay=1'"
+        frameborder="0"
+        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen>
       </iframe>
     </div>
@@ -29,7 +29,6 @@
 import Vue from 'vue';
 import { mapState } from 'vuex';
 import { RadixTransactionBuilder, RadixSerializer } from 'radixdlt';
-
 export default Vue.extend({
   data() {
     return {
@@ -55,15 +54,13 @@ export default Vue.extend({
       if (this.identity) {
         this.$http.get('http://localhost:3001/request-access').then((response) => {
           const challenge = response.body
-
           // Construct and sign the atom
           const data = {challenge}
-
           const atom = RadixTransactionBuilder.createPayloadAtom(
-            this.identity.account, 
-            [this.identity.account], 
-            'radflix', 
-            JSON.stringify(data), 
+            this.identity.account,
+            [this.identity.account],
+            'radflix',
+            JSON.stringify(data),
             false).buildAtom()
           this.identity.signAtom(atom).then((signedAtom) => {
             this.$http.post('http://localhost:3001/movie', {

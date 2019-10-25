@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <h1 class="title">Welcome to Radflix</h1>
-<center>    
+<center>
   <table class="table is-responsive">
     <thead>
       <tr>
@@ -28,21 +28,19 @@
       </tr>
     </tbody>
   </table>
-</center>      
-  </div>  
+</center>
+  </div>
 </template>
 
 <script lang="ts">
 import Vue from 'vue';
 import { mapState } from 'vuex';
 import Decimal from 'decimal.js';
-
 export default Vue.extend({
   data() {
     return {
       movies: [],
       myMovies: {} as {[tokenUri: string]: string},
-
       tokenSubscription: null,
     }
   },
@@ -69,7 +67,6 @@ export default Vue.extend({
       if(this.tokenSubscription) {
         this.tokenSubscription.unsubscribe()
       }
-
       if(this.identity) {
         this.tokenSubscription = this.identity.account.transferSystem
         .getTokenUnitsBalanceUpdates().subscribe((balance: {[tokenUri: string]: Decimal}) => {
@@ -81,7 +78,7 @@ export default Vue.extend({
           }
         })
       }
-      
+
     },
     buy(tokenUri: string) {
       this.$http.post('http://localhost:3001/admin/buy-movie',{
