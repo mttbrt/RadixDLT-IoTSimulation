@@ -34,7 +34,7 @@ connectDb()
 
 // Store and recover account
 const identityManager = new RadixIdentityManager()
-const keystorePath = 'keystore.json'
+const keystorePath = 'keystore_server.json'
 const keystorePassword = `radix123`
 const accounts: {[address: string]: RadixAccount} = {}
 
@@ -138,8 +138,9 @@ const getAccount = async function(address: string) {
       console.log('synced', val)
       return val
     })
-    .take(1)
-    .toPromise()
+    // .take(1)
+    // .toPromise()
+    // ^^^ EDITED
 
   return account
 }
@@ -209,7 +210,6 @@ app.post('/movie', async (req, res) => {
   document.set('consumed', true)
   await document.save()
 
-
   // Check ownership
   const account = await getAccount(from.toString())
   console.log('got synced account')
@@ -235,7 +235,6 @@ app.post('/movie', async (req, res) => {
 
   res.send(movie)
 })
-
 
 // -------------- ADMIN --------------
 // Add a movie
@@ -296,12 +295,14 @@ app.post('/admin/buy-movie', (req, res) => {
 
   const purchaser = RadixAccount.fromAddress(address)
 
+  const tokenRRI = new RRI(identity.address, tokenUri.split("/")[2])
+
   // Mint a new movie token
-  RadixTransactionBuilder.createMintAtom(identity.account, tokenUri, 1)
+  RadixTransactionBuilder.createMintAtom(identity.account, tokenRRI, 1)
   .signAndSubmit(identity)
   .subscribe({complete: () => {
     // Send the movie token
-    RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenUri, 1)
+    RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenRRI, 1)
       .signAndSubmit(identity)
       .subscribe({
         complete: () => {
