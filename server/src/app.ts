@@ -35,7 +35,7 @@ connectDb()
 // Store and recover account
 const identityManager = new RadixIdentityManager()
 const keystorePath = 'keystore_server.json'
-const keystorePassword = `radix123`
+const keystorePassword = 'radix123'
 const accounts: {[address: string]: RadixAccount} = {}
 
 // Load identity
@@ -179,7 +179,7 @@ app.get('/request-access', async (req, res) => {
 app.post('/movie', async (req, res) => {
   console.log('Requesting access to movie')
   const serializedAtom = req.body.atom
-  const movieTokenUri = req.body.movieTokenUri
+  const movieTokenUri = new RRI(identity.address, req.body.movieTokenUri)
 
   const atom = RadixSerializer.fromJSON(serializedAtom) as RadixAtom
   const particle = atom.getFirstParticleOfType(RadixMessageParticle)
@@ -217,7 +217,7 @@ app.post('/movie', async (req, res) => {
   console.log(balance)
 
   // If don't have any movie tokens
-  if(!(movieTokenUri in balance) || balance[movieTokenUri].ltn(1)) {
+  if(!(movieTokenUri.toString() in balance) || balance[movieTokenUri.toString()].ltn(1)) {
     res.status(400).send(`Don't own the movie`)
     throw new Error(`Don't own the movie`)
   }
@@ -225,7 +225,7 @@ app.post('/movie', async (req, res) => {
   console.log('movie owned')
 
   const movie = await models.Movie.findOne({
-    tokenUri: movieTokenUri
+    tokenUri: movieTokenUri.toString()
   }).exec()
 
   if(!movie) {
@@ -295,7 +295,7 @@ app.post('/admin/buy-movie', (req, res) => {
 
   const purchaser = RadixAccount.fromAddress(address)
 
-  const tokenRRI = new RRI(identity.address, tokenUri.split("/")[2])
+  const tokenRRI = new RRI(identity.address, tokenUri)
 
   // Mint a new movie token
   RadixTransactionBuilder.createMintAtom(identity.account, tokenRRI, 1)
