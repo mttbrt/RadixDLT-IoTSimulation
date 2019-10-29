@@ -150,8 +150,8 @@ const getAccount = async function(address: string) {
 app.get('/', (req, res) => res.send(`Radflix`))
 
 // -------------- ROUTES --------------
-// Access Request
-app.get('/movies', async (req, res) => {
+// Get all buses
+app.get('/buses', async (req, res) => {
   models.Movie.find({}, '-contentUrl', (err, movies) => {
     if (err) {
       res.status(400).send(err)
@@ -176,8 +176,8 @@ app.get('/request-access', async (req, res) => {
 })
 
 // Access a resource (signed(address, challenge), tokenId)
-app.post('/movie', async (req, res) => {
-  console.log('Requesting access to movie')
+app.post('/bus', async (req, res) => {
+  console.log('Requesting access to bus line')
   const serializedAtom = req.body.atom
   const movieTokenUri = new RRI(identity.address, req.body.movieTokenUri)
 
@@ -237,8 +237,34 @@ app.post('/movie', async (req, res) => {
 })
 
 // -------------- ADMIN --------------
-// Add a movie
-app.post('/admin/movie', async (req, res) => {
+// Subscribe to bus line
+app.post('/subscribe', (req, res) => {
+  // Create token
+  const tokenUri = req.body.tokenUri
+  const address = req.body.address
+
+  const purchaser = RadixAccount.fromAddress(address)
+
+  const tokenRRI = new RRI(identity.address, tokenUri)
+
+  // Mint a new movie token
+  RadixTransactionBuilder.createMintAtom(identity.account, tokenRRI, 1)
+  .signAndSubmit(identity)
+  .subscribe({complete: () => {
+    // Send the movie token
+    RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenRRI, 1)
+      .signAndSubmit(identity)
+      .subscribe({
+        complete: () => {
+          console.log('Movie was purchased')
+          res.send('Done')
+        }
+      })
+  }})
+})
+
+// Add a bus
+app.post('/add-bus', async (req, res) => {
   // Create token
   const name = req.body['name']
   const symbol = req.body['symbol']
@@ -285,30 +311,4 @@ app.post('/admin/movie', async (req, res) => {
   } catch(e) {
     res.status(400).send(e.message)
   }
-})
-
-// Buy a movie
-app.post('/admin/buy-movie', (req, res) => {
-  // Create token
-  const tokenUri = req.body.tokenUri
-  const address = req.body.address
-
-  const purchaser = RadixAccount.fromAddress(address)
-
-  const tokenRRI = new RRI(identity.address, tokenUri)
-
-  // Mint a new movie token
-  RadixTransactionBuilder.createMintAtom(identity.account, tokenRRI, 1)
-  .signAndSubmit(identity)
-  .subscribe({complete: () => {
-    // Send the movie token
-    RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenRRI, 1)
-      .signAndSubmit(identity)
-      .subscribe({
-        complete: () => {
-          console.log('Movie was purchased')
-          res.send('Done')
-        }
-      })
-  }})
 })
