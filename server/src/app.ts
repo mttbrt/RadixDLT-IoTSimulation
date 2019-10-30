@@ -147,7 +147,7 @@ const getAccount = async function(address: string) {
 
 
 
-app.get('/', (req, res) => res.send(`Radflix`))
+app.get('/', (req, res) => res.send(`Radibus`))
 
 // -------------- ROUTES --------------
 // Get all buses

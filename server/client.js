@@ -18,12 +18,11 @@ const PORT = 8000
 const KEYSTORE_PATH = 'keystore_client.json'
 const KEYSTORE_PASSWORD = 'radix123'
 const APPLICATION_ID = 'methk'
+
 var clientIdentity
 
 
-async function createNewIdentity() {
-  radixUniverse.bootstrap(RadixUniverse.LOCALHOST_SINGLENODE)
-
+async function createServerIdentity() {
   if (fs.existsSync(KEYSTORE_PATH)) {
     // Load account
     const contents = JSON.parse(fs.readFileSync(KEYSTORE_PATH, 'utf8'));
@@ -47,7 +46,15 @@ async function createNewIdentity() {
 
   console.log("Address: " + clientIdentity.address.getAddress());
 }
-createNewIdentity()
+
+async function main() {
+  radixUniverse.bootstrap(RadixUniverse.LOCALHOST_SINGLENODE)
+
+  await createServerIdentity()
+}
+main()
+
+
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname + '/GUI/index.html'));
