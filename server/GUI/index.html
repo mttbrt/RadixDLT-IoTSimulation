@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+
+    <title>Radix IoT Simulation</title>
+
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/css/bootstrap.min.css">
+
+    <!-- jQuery library -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+
+    <!-- Latest compiled JavaScript -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/js/bootstrap.min.js"></script>
+
+    <!-- #222831 #393e46 #d65a31 -->
+    <style>
+      body {
+        background: #222831;
+        color: #d65a31;
+      }
+
+      .table {
+        width: 80%;
+        max-width: 200px;
+      }
+
+      .table > tbody > tr > td, .table > tbody > tr > th, .table > tfoot > tr > td, .table > tfoot > tr > th, .table > thead > tr > td, .table > thead > tr > th {
+        border-top: 1px solid #393e46;
+      }
+
+      .table > thead > tr > th {
+        border-bottom: 2px solid #393e46;
+      }
+
+      .btn-primary, .btn-primary:hover {
+        color: #d65a31;
+        background-color: #393e46;
+        border-color: #393e46;
+      }
+
+      .btn-default, .btn-default:hover {
+        color: #393e46;
+        background-color: #d65a31;
+        border-color: #d65a31;
+      }
+    </style>
+  </head>
+
+  <body>
+    <center>
+      <h1>Radibus</h1>
+      <table class="table" id="bus-table">
+        <thead>
+          <tr>
+            <th scope="col">Line</th>
+            <th scope="col">Subscribe</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </center>
+
+
+
+
+
+    <script type="text/javascript">
+      $.get("/movies", function(data, status) {
+        var content = ''
+        for (var i = 0; i < data.length; i++) {
+          content += '<tr> <td>255</td> <td><button type="button" class="btn btn-primary">Subscribe</button></td> </tr>'
+        }
+        content += '<tr> <td>255</td> <td><button type="button" class="btn btn-default">Subscribe</button></td> </tr>'
+
+        $('#bus-table tbody').html(content);
+      });
+
+    </script>
+
+  </body>
+</html>
