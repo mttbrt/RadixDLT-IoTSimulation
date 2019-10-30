@@ -63,7 +63,7 @@ async function loadIdentity() {
   }
 }
 
-// Buying a movie
+// Buying a bus
 function subscribeForPurchases() {
   identity.account.transferSystem.getAllTransactions().subscribe(async (txUpdate) => {
     if (!txUpdate.transaction) {
@@ -84,31 +84,31 @@ function subscribeForPurchases() {
 
       const tokenUri = txUpdate.transaction.message
       const purchaser = Object.values(txUpdate.transaction.participants)[0]
-      const movie = await models.Movie.findOne({
+      const bus = await models.Bus.findOne({
         tokenUri
       }).exec()
 
-      if (!movie) {
-        throw new Error(`Movie doesn't exist`)
+      if (!bus) {
+        throw new Error(`Bus doesn't exist`)
         // TODO: return money
       }
 
       const moneySent = txUpdate.transaction.tokenUnitsBalance[radixUniverse.nativeToken.toString()]
-      if (moneySent.lessThan(movie.get('price'))) {
+      if (moneySent.lessThan(bus.get('price'))) {
         throw new Error('Insufficent patment')
         // TODO: return money
       }
 
-      // Mint a new movie token
+      // Mint a new bus token
       RadixTransactionBuilder.createMintAtom(identity.account, tokenUri, 1)
         .signAndSubmit(identity)
         .subscribe({complete: () => {
-          // Send the movie token
+          // Send the bus token
           RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenUri, 1)
             .signAndSubmit(identity)
             .subscribe({
               complete: () => {
-                console.log('Movie was purchased')
+                console.log('Bus was purchased')
                 new models.Purchase({
                   aid: txUpdate.aid
                 }).save()
@@ -152,13 +152,13 @@ app.get('/', (req, res) => res.send(`Radflix`))
 // -------------- ROUTES --------------
 // Get all buses
 app.get('/buses', async (req, res) => {
-  models.Movie.find({}, '-contentUrl', (err, movies) => {
+  models.Bus.find({}, '-channelId', (err, buses) => {
     if (err) {
       res.status(400).send(err)
       return
     }
 
-    res.send(movies)
+    res.send(buses)
   })
 })
 
@@ -179,7 +179,7 @@ app.get('/request-access', async (req, res) => {
 app.post('/bus', async (req, res) => {
   console.log('Requesting access to bus line')
   const serializedAtom = req.body.atom
-  const movieTokenUri = new RRI(identity.address, req.body.movieTokenUri)
+  const busTokenUri = new RRI(identity.address, req.body.busTokenUri)
 
   const atom = RadixSerializer.fromJSON(serializedAtom) as RadixAtom
   const particle = atom.getFirstParticleOfType(RadixMessageParticle)
@@ -216,24 +216,24 @@ app.post('/bus', async (req, res) => {
   const balance = account.transferSystem.balance
   console.log(balance)
 
-  // If don't have any movie tokens
-  if(!(movieTokenUri.toString() in balance) || balance[movieTokenUri.toString()].ltn(1)) {
-    res.status(400).send(`Don't own the movie`)
-    throw new Error(`Don't own the movie`)
+  // If don't have any bus tokens
+  if(!(busTokenUri.toString() in balance) || balance[busTokenUri.toString()].ltn(1)) {
+    res.status(400).send(`Don't own the subscription`)
+    throw new Error(`Don't own the subscription`)
   }
 
-  console.log('movie owned')
+  console.log('Subscription owned')
 
-  const movie = await models.Movie.findOne({
-    tokenUri: movieTokenUri.toString()
+  const bus = await models.Bus.findOne({
+    tokenUri: busTokenUri.toString()
   }).exec()
 
-  if(!movie) {
-    res.status(400).send(`Movie doesn't exist`)
-    throw new Error(`Movie doesn't exist`)
+  if(!bus) {
+    res.status(400).send(`Bus line doesn't exist`)
+    throw new Error(`Bus line doesn't exist`)
   }
 
-  res.send(movie)
+  res.send(bus)
 })
 
 // -------------- ADMIN --------------
@@ -247,16 +247,16 @@ app.post('/subscribe', (req, res) => {
 
   const tokenRRI = new RRI(identity.address, tokenUri)
 
-  // Mint a new movie token
+  // Mint a new bus token
   RadixTransactionBuilder.createMintAtom(identity.account, tokenRRI, 1)
   .signAndSubmit(identity)
   .subscribe({complete: () => {
-    // Send the movie token
+    // Send the bus token
     RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenRRI, 1)
       .signAndSubmit(identity)
       .subscribe({
         complete: () => {
-          console.log('Movie was purchased')
+          console.log('Bus was purchased')
           res.send('Done')
         }
       })
@@ -269,8 +269,8 @@ app.post('/add-bus', async (req, res) => {
   const name = req.body['name']
   const symbol = req.body['symbol']
   const description = req.body['description']
-  const posterUrl = req.body['posterUrl']
-  const contentUrl = req.body['contentUrl']
+  const iconUrl = req.body['iconUrl']
+  const channelId = req.body['channelId']
   const price = req.body['price'] ? parseFloat(req.body['price']) : 1
 
   const uri = new RRI(identity.address, symbol)
@@ -283,7 +283,7 @@ app.post('/add-bus', async (req, res) => {
       description,
       1,
       1,
-      posterUrl,
+      iconUrl,
     ).signAndSubmit(identity)
     .subscribe({
       next: status => {
@@ -291,16 +291,16 @@ app.post('/add-bus', async (req, res) => {
       },
       complete:  async () => {
         // Create DB entry
-        const movie = new models.Movie({
+        const bus = new models.Bus({
           tokenUri: uri.toString(),
           name,
           description,
           price,
-          posterUrl,
-          contentUrl,
+          iconUrl,
+          channelId
         })
 
-        await movie.save()
+        await bus.save()
 
         res.send(uri)
       }, error: (e) => {

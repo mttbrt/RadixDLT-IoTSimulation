@@ -86,7 +86,7 @@ app.get('/bus', (req, res) => {
                 headers: { 'content-type': 'application/json' },
                 url: 'http://localhost:3001/bus',
                 body: JSON.stringify({
-                        movieTokenUri: req.query.id,
+                        busTokenUri: req.query.id,
                         atom: atom.toJSON()
                       })
             },  function (error, response, body) {
@@ -118,23 +118,23 @@ app.get('/subscribe', (req, res) => {
 })
 
 app.get('/add-bus', (req, res) => {
-  var movie_name = "A2"
-  var movie_token_symbol = "A2"
-  var movie_description = "A2"
-  var movie_poster_url = "https://image.flaticon.com/icons/svg/61/61985.svg"
-  var movie_url = "A2"
-  var movie_price = "1"
+  var bus_name = "A2"
+  var bus_token_symbol = "A2"
+  var bus_description = "A2"
+  var bus_icon_url = "https://image.flaticon.com/icons/svg/61/61985.svg"
+  var bus_url = "secret"
+  var bus_price = "1"
 
   request.post({
       headers: { 'content-type': 'application/json' },
       url: 'http://localhost:3001/add-bus',
       body: JSON.stringify({
-              name : movie_name,
-              symbol: movie_token_symbol,
-              description: movie_description,
-              posterUrl : movie_poster_url,
-              contentUrl : movie_url,
-              price : movie_price
+              name : bus_name,
+              symbol: bus_token_symbol,
+              description: bus_description,
+              price : bus_price,
+              iconUrl : bus_icon_url,
+              channelId : bus_url
             })
   },  function (error, response, body) {
         if (!error && response.statusCode == 200)
@@ -148,12 +148,12 @@ app.get('/add-bus', (req, res) => {
       headers: { 'content-type': 'application/json' },
       url: 'http://localhost:3001/add-bus',
       body: JSON.stringify({
-              name : req.body.movie_name,
-              symbol: req.body.movie_token_symbol,
-              description: req.body.movie_description,
-              posterUrl : req.body.movie_poster_url,
-              contentUrl : req.body.movie_url,
-              price : req.body.movie_price
+              name : req.body.bus_name,
+              symbol: req.body.bus_token_symbol,
+              description: req.body.bus_description,
+              posterUrl : req.body.bus_icon_url,
+              contentUrl : req.body.bus_url,
+              price : req.body.bus_price
             })
   },  function (error, response, body) {
         if (!error && response.statusCode == 200)
