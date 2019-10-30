@@ -6,7 +6,7 @@ export type BusModel = mongoose.Document & {
     description: string,
     price: number,
     iconUrl: string,
-    channelId: string
+    busPos: string
 };
 
 const busSchema = new mongoose.Schema({
@@ -18,7 +18,7 @@ const busSchema = new mongoose.Schema({
     description: String,
     price: Number,
     iconUrl: String,
-    channelId: String
+    busPos: String
 });
 
 const Bus = mongoose.model<BusModel>('Bus', busSchema);

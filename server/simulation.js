@@ -1,5 +1,6 @@
 const radixdlt = require('radixdlt')
 const readlines = require('n-readlines')
+const request = require('request')
 
 const radixUniverse = radixdlt.radixUniverse
 const RadixUniverse = radixdlt.RadixUniverse
@@ -32,16 +33,12 @@ async function runSimulation() {
   try {
     csvReader.next() // get rid of header line
 
-    BUS_ACCOUNTS[3].dataSystem.getApplicationData(APPLICATION_ID).subscribe((payload) => {
-      console.log(payload)
-    })
-
     while (line = csvReader.next()) {
       row = line.toString('ascii').split(',')
       console.log('Waiting ' + row[0] + ' seconds for bus ' + row[1])
 
       await sleep(parseInt(row[0]) * 1000)
-      storeBusUpdate(row[4], row[1], row[2], row[3])
+      updateBusPosition(row[1], row[2], row[3])
     }
 
     console.log('SIMULATION COMPLETED!')
@@ -50,42 +47,20 @@ async function runSimulation() {
   }
 }
 
-async function storeBusUpdate(counter, busId, lat, lon) {
-  const busIndex = BUS_IDS.indexOf(row[1])
-
-  const payload = JSON.stringify({
-    message: 'Coordinates bus: ' + busId,
-    data: {
-      latitude: lat,
-      longitude: lon,
-      timestampISO: new Date().toISOString()
-    }
-  })
-
-  var transactionStatus = null
-  try {
-    transactionStatus = RadixTransactionBuilder
-                          .createPayloadAtom(
-                              BUS_ACCOUNTS[busIndex],
-                              [BUS_ACCOUNTS[busIndex]],
-                              APPLICATION_ID,
-                              payload,
-                              true
-                          ).signAndSubmit(BUS_IDENTITIES[busIndex])
-  } catch(error) {
-    console.error('ERROR: Error occured while building transaction')
-    console.error(error)
-  }
-
-  const subscription = transactionStatus.subscribe({
-    complete: () => {
-      subscription.unsubscribe()
-      console.log('SUCCESS: Transaction has been stored on the ledger')
-    },
-    error: error => {
-      subscription.unsubscribe()
-      console.error('ERROR: Error submitting transaction')
-    }
+async function updateBusPosition(busId, lat, lng) {
+  request.post({
+      headers: { 'content-type': 'application/json' },
+      url: 'http://localhost:3001/update-bus',
+      body: JSON.stringify({
+              bus: "A2",
+              lat: lat,
+              lng: lng
+            })
+  },  function (error, response, body) {
+        if (!error && response.statusCode == 200)
+          console.log(response.body)
+        else
+          console.log(response.body)
   })
 }
 

@@ -48,7 +48,7 @@ async function loadIdentity() {
     const identity = identityManager.addSimpleIdentity(address)
     await identity.account.openNodeConnection()
 
-    console.log('Loaded identity')
+    console.log('Loaded identity: ' + identity.address.getAddress())
 
     return identity
   } else {
@@ -57,7 +57,7 @@ async function loadIdentity() {
     const contents = await RadixKeyStore.encryptKey(identity.address, keystorePassword)
     await fs.writeJSON(keystorePath, contents)
 
-    console.log('Generated new identity')
+    console.log('Generated new identity: ' + identity.address.getAddress())
 
     return identity
   }
@@ -152,7 +152,7 @@ app.get('/', (req, res) => res.send(`Radibus`))
 // -------------- ROUTES --------------
 // Get all buses
 app.get('/buses', async (req, res) => {
-  models.Bus.find({}, '-channelId', (err, buses) => {
+  models.Bus.find({}, '-busPos', (err, buses) => {
     if (err) {
       res.status(400).send(err)
       return
@@ -270,7 +270,7 @@ app.post('/add-bus', async (req, res) => {
   const symbol = req.body['symbol']
   const description = req.body['description']
   const iconUrl = req.body['iconUrl']
-  const channelId = req.body['channelId']
+  const busPos = req.body['busPos']
   const price = req.body['price'] ? parseFloat(req.body['price']) : 1
 
   const uri = new RRI(identity.address, symbol)
@@ -297,7 +297,7 @@ app.post('/add-bus', async (req, res) => {
           description,
           price,
           iconUrl,
-          channelId
+          busPos
         })
 
         await bus.save()
@@ -311,4 +311,16 @@ app.post('/add-bus', async (req, res) => {
   } catch(e) {
     res.status(400).send(e.message)
   }
+})
+
+// Update bus position
+app.post('/update-bus', async (req, res) => {
+  const bus = req.body['bus']
+  const lat = req.body['lat']
+  const lng = req.body['lng']
+
+  models.Bus.findOneAndUpdate({ name: bus }, { busPos: JSON.stringify({lat: lat, lng: lng}) }, function(err, doc) {
+    if (err) return res.status(500).send({ error: err })
+    return res.send("Updated bus position")
+  })
 })
