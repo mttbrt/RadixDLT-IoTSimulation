@@ -64,6 +64,7 @@ async function updateBusPosition(busId, lat, lng) {
   const message = JSON.stringify({
     message: 'Coordinates bus: ' + busId,
     data: {
+      busId: busId,
       latitude: lat,
       longitude: lng,
       timestampISO: new Date().toISOString()

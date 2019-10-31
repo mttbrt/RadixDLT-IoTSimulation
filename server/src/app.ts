@@ -6,9 +6,14 @@ import fs from 'fs-extra'
 import BN from 'bn.js'
 import cors from 'cors'
 import bodyParser from 'body-parser'
+import crypto from 'crypto'
 
 const app: express.Application = express();
 const port: number = Number(process.env.PORT) || 3001;
+
+const key: string = crypto.randomBytes(32).toString('hex');
+const iv: string = crypto.randomBytes(16).toString('hex');
+
 app.use(cors())
 app.use(bodyParser.json())
 
@@ -21,6 +26,7 @@ connectDb()
   return loadIdentity()
 }).then(_identity => {
   identity = _identity
+  uploadBusKeys()
   subscribeForPurchases()
   subscribeForMessages()
 
@@ -68,6 +74,7 @@ async function loadIdentity() {
 function subscribeForPurchases() {
   // TODO Errore ripete due volte il refund
   identity.account.transferSystem.transactionSubject.subscribe(async (txUpdate) => {
+    console.log("STONKS")
     if (!txUpdate.transaction) {
       return
     }
@@ -92,19 +99,11 @@ function subscribeForPurchases() {
       }).exec()
 
       if (!bus) {
-        // Return money
-        RadixTransactionBuilder
-          .createTransferAtom(identity.account, purchaser, radixUniverse.nativeToken, 2)
-          .signAndSubmit(identity)
         throw new Error(`Bus doesn't exist`)
       }
 
       const moneySent = txUpdate.transaction.tokenUnitsBalance[radixUniverse.nativeToken.toString()]
       if (moneySent.lessThan(bus.get('price'))) {
-        // Return money
-        RadixTransactionBuilder
-          .createTransferAtom(identity.account, purchaser, radixUniverse.nativeToken, 2)
-          .signAndSubmit(identity)
         throw new Error('Insufficent patment')
       }
 
@@ -127,8 +126,12 @@ function subscribeForPurchases() {
   })
 }
 
+// Bus position update
 function subscribeForMessages() {
-  identity.account.messagingSystem.messageSubject.subscribe(transactionUpdate => {
+  identity.account.messagingSystem.messageSubject.subscribe(messageUpdate => {
+    var cip = encrypt(messageUpdate.message.content)
+    console.log(cip)
+    console.log(decrypt(cip))
     // TODO Salvare le nuove posizioni degli autobus aggiornando la busPos nel database
 
     // Il server inoltra al client indirizzo del bus e chiave di decifratura.
@@ -136,6 +139,10 @@ function subscribeForMessages() {
     // con la chiave di decifratura ci decifra il contenuto dei messaggi
     // Questo deve farlo il client prendendo l'account dell'autobus a partire dall'indirizzo
   })
+}
+
+function uploadBusKeys() {
+  // TODO read bus_keys.json file and store it in a variable
 }
 
 // Get an account
@@ -164,6 +171,22 @@ const getAccount = async function(address: string) {
   return account
 }
 
+function encrypt(text: string) {
+  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+
+  return encrypted.toString('hex');
+}
+
+function decrypt(text: string) {
+  let encryptedText = Buffer.from(text, 'hex');
+  let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+  return decrypted.toString();
+}
 
 
 app.get('/', (req, res) => res.send(`Radibus`))
