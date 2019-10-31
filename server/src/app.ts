@@ -22,6 +22,7 @@ connectDb()
 }).then(_identity => {
   identity = _identity
   subscribeForPurchases()
+  subscribeForMessages()
 
   app.listen(port, (err: Error) => {
     if (err) {
@@ -82,7 +83,7 @@ function subscribeForPurchases() {
         return
       }
 
-      const tokenUri = txUpdate.transaction.message
+      const tokenUri = new RRI(identity.address, txUpdate.transaction.message).toString()
       const purchaser = Object.values(txUpdate.transaction.participants)[0]
       const bus = await models.Bus.findOne({
         tokenUri
@@ -105,9 +106,8 @@ function subscribeForPurchases() {
         .subscribe({complete: () => {
           // Send the bus token
           RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenUri, 1)
-            .signAndSubmit(identity)
-            .subscribe({
-              complete: () => {
+            .signAndSubmit(identity) // TODO IL PROBLEMA é QUI!
+            .subscribe({complete: () => {
                 console.log('Bus was purchased')
                 new models.Purchase({
                   aid: txUpdate.aid
@@ -116,6 +116,13 @@ function subscribeForPurchases() {
             })
         }})
     })
+  })
+}
+
+function subscribeForMessages() {
+  // TODO Salvare le nuove posizioni degli autobus aggiornando la busPos nel database
+  identity.account.messagingSystem.getAllMessages().subscribe(transactionUpdate => {
+
   })
 }
 
@@ -311,16 +318,4 @@ app.post('/add-bus', async (req, res) => {
   } catch(e) {
     res.status(400).send(e.message)
   }
-})
-
-// Update bus position
-app.post('/update-bus', async (req, res) => {
-  const bus = req.body['bus']
-  const lat = req.body['lat']
-  const lng = req.body['lng']
-
-  models.Bus.findOneAndUpdate({ name: bus }, { busPos: JSON.stringify({lat: lat, lng: lng}) }, function(err, doc) {
-    if (err) return res.status(500).send({ error: err })
-    return res.send("Updated bus position")
-  })
 })

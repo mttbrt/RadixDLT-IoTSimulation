@@ -6,12 +6,17 @@ const radixUniverse = radixdlt.radixUniverse
 const RadixUniverse = radixdlt.RadixUniverse
 const RadixIdentityManager = radixdlt.RadixIdentityManager
 const RadixTransactionBuilder = radixdlt.RadixTransactionBuilder
+const RadixAccount = radixdlt.RadixAccount
+const RadixIdentity = radixdlt.RadixIdentity
+const RadixAddress = radixdlt.RadixAddress
 const identityManager = new RadixIdentityManager()
 const csvReader = new readlines('data/dataset.csv')
 
 const APPLICATION_ID = 'methk'
-const BUS_IDS = [ '110', '226', '371', '422', '426', '484', '512', '639', '650', '889' ]
+// const BUS_IDS = [ '110', '226', '371', '422', '426', '484', '512', '639', '650', '889' ]
+const BUS_IDS = [ '226', '371', '422', '426', '484', '512', '639', '650' ]
 const BUS_IDENTITIES = [], BUS_ACCOUNTS = []
+var MASTER_ACCOUNT
 
 var clientIdentity
 
@@ -20,12 +25,17 @@ function sleep(ms) {
 }
 
 async function createBusesIdentities() {
+  MASTER_ACCOUNT = RadixAccount.fromAddress('JHvbGGm3hxUaQ733ZVeqYDKhAhSEF3fZJXm3MQNWDea1ie7sVem')
+  await MASTER_ACCOUNT.openNodeConnection()
+
   for (var i = 0; i < BUS_IDS.length; i++) {
     // Create new bus account for each bus id
     BUS_IDENTITIES.push(identityManager.generateSimpleIdentity())
     BUS_ACCOUNTS.push(BUS_IDENTITIES[i].account)
     // Connect the bus account to the network
     BUS_ACCOUNTS[i].openNodeConnection()
+
+    console.log("Bus " + BUS_IDS[i] + " with address: " + BUS_IDENTITIES[i].address.getAddress());
   }
 }
 
@@ -48,19 +58,37 @@ async function runSimulation() {
 }
 
 async function updateBusPosition(busId, lat, lng) {
-  request.post({
-      headers: { 'content-type': 'application/json' },
-      url: 'http://localhost:3001/update-bus',
-      body: JSON.stringify({
-              bus: "A2",
-              lat: lat,
-              lng: lng
-            })
-  },  function (error, response, body) {
-        if (!error && response.statusCode == 200)
-          console.log(response.body)
-        else
-          console.log(response.body)
+  const busIndex = BUS_IDS.indexOf(busId)
+
+  // TODO cifrare il messaggio con una chiave
+  const message = JSON.stringify({
+    message: 'Coordinates bus: ' + busId,
+    data: {
+      latitude: lat,
+      longitude: lng,
+      timestampISO: new Date().toISOString()
+    }
+  })
+
+  var transactionStatus = null
+  try {
+    transactionStatus = RadixTransactionBuilder
+                        .createRadixMessageAtom(BUS_ACCOUNTS[busIndex], MASTER_ACCOUNT, message)
+                        .signAndSubmit(BUS_IDENTITIES[busIndex])
+  } catch(error) {
+    console.error('ERROR: Error occured while building transaction')
+  }
+
+  const subscription = transactionStatus.subscribe({
+    complete: () => {
+      subscription.unsubscribe()
+      console.log('SUCCESS: new bus position has been stored on the ledger')
+    },
+    error: error => {
+      subscription.unsubscribe()
+      console.error('ERROR: an error occured submitting transaction')
+      console.log(error);
+    }
   })
 }
 

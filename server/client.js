@@ -32,11 +32,13 @@ async function main() {
 
   await createServerIdentity()
 
+
+
   // TODO il server inoltra al client indirizzo del bus e chiave di decifratura.
   // con l'indirizzo del bus il client ottiene l'account ed effettua il subscribe ai messaggi
   // con la chiave di decifratura ci decifra il contenuto dei messaggi
-  await sendMessage()
-  await sendMessage()
+  // Questo deve farlo il client prendendo l'account dell'autobus a partire dall'indirizzo
+
 }
 
 async function createServerIdentity() {
@@ -73,30 +75,6 @@ async function getMoney() {
   clientIdentity.account.transferSystem.getTokenUnitsBalanceUpdates().subscribe(balance => {
     clientBalance = parseInt(balance[radixToken.toString()])
     console.log(balance)
-  })
-}
-
-// TODO da scorporare tra server, client e simulation
-async function sendMessage() {
-  // Questo deve farlo il client prendendo l'account dell'autobus a partire dall'indirizzo
-  const identityA = identityManager.generateSimpleIdentity()
-  const accountA = identityA.account
-  accountA.openNodeConnection()
-
-  const message = 'Hello World!'
-
-  const transactionStatus = RadixTransactionBuilder
-    .createRadixMessageAtom(accountA, clientIdentity.account, message)
-    .signAndSubmit(identityA)
-
-  transactionStatus.subscribe({
-    complete: () => { console.log('Transaction complete') },
-    error: error => { console.error('Error submitting transaction', error) }
-  })
-
-  accountA.messagingSystem.messageSubject.subscribe(transactionUpdate => {
-    console.log('Transaction:')
-    console.log(transactionUpdate)
   })
 }
 
@@ -158,26 +136,12 @@ app.get('/subscribe', (req, res) => {
 
   if(clientBalance >= 2) {
     const transactionStatus = RadixTransactionBuilder
-      .createTransferAtom(clientIdentity.account, busAccount, radixToken, 2)
+      .createTransferAtom(clientIdentity.account, busAccount, radixToken, 2, req.query.id)
       .signAndSubmit(clientIdentity)
 
     transactionStatus.subscribe({
       complete: () => {
         console.log('Successfully paid 2 RDX')
-
-        request.post({
-            headers: { 'content-type': 'application/json' },
-            url: 'http://localhost:3001/subscribe',
-            body: JSON.stringify({
-                    tokenUri: req.query.id,
-                    address: clientIdentity.address.getAddress()
-                  })
-        },  function (error, response, body) {
-              if (!error && response.statusCode == 200)
-                res.send(response.body)
-              else
-                res.send(response.body)
-        })
       },
       error: error => { console.error('Error submitting transaction', error) }
     })
