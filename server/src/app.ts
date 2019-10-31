@@ -66,7 +66,8 @@ async function loadIdentity() {
 
 // Buying a bus
 function subscribeForPurchases() {
-  identity.account.transferSystem.getAllTransactions().subscribe(async (txUpdate) => {
+  // TODO Errore ripete due volte il refund
+  identity.account.transferSystem.transactionSubject.subscribe(async (txUpdate) => {
     if (!txUpdate.transaction) {
       return
     }
@@ -83,30 +84,37 @@ function subscribeForPurchases() {
         return
       }
 
-      const tokenUri = new RRI(identity.address, txUpdate.transaction.message).toString()
-      const purchaser = Object.values(txUpdate.transaction.participants)[0]
+      const tokenRRI = new RRI(identity.address, txUpdate.transaction.message)
+      const tokenUri = tokenRRI.toString()
+      const purchaser = RadixAccount.fromAddress(Object.keys(txUpdate.transaction.participants)[0])
       const bus = await models.Bus.findOne({
         tokenUri
       }).exec()
 
       if (!bus) {
+        // Return money
+        RadixTransactionBuilder
+          .createTransferAtom(identity.account, purchaser, radixUniverse.nativeToken, 2)
+          .signAndSubmit(identity)
         throw new Error(`Bus doesn't exist`)
-        // TODO: return money
       }
 
       const moneySent = txUpdate.transaction.tokenUnitsBalance[radixUniverse.nativeToken.toString()]
       if (moneySent.lessThan(bus.get('price'))) {
+        // Return money
+        RadixTransactionBuilder
+          .createTransferAtom(identity.account, purchaser, radixUniverse.nativeToken, 2)
+          .signAndSubmit(identity)
         throw new Error('Insufficent patment')
-        // TODO: return money
       }
 
       // Mint a new bus token
-      RadixTransactionBuilder.createMintAtom(identity.account, tokenUri, 1)
+      RadixTransactionBuilder.createMintAtom(identity.account, tokenRRI, 1)
         .signAndSubmit(identity)
         .subscribe({complete: () => {
           // Send the bus token
-          RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenUri, 1)
-            .signAndSubmit(identity) // TODO IL PROBLEMA é QUI!
+          RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenRRI, 1)
+            .signAndSubmit(identity)
             .subscribe({complete: () => {
                 console.log('Bus was purchased')
                 new models.Purchase({
@@ -120,9 +128,13 @@ function subscribeForPurchases() {
 }
 
 function subscribeForMessages() {
-  // TODO Salvare le nuove posizioni degli autobus aggiornando la busPos nel database
-  identity.account.messagingSystem.getAllMessages().subscribe(transactionUpdate => {
+  identity.account.messagingSystem.messageSubject.subscribe(transactionUpdate => {
+    // TODO Salvare le nuove posizioni degli autobus aggiornando la busPos nel database
 
+    // Il server inoltra al client indirizzo del bus e chiave di decifratura.
+    // con l'indirizzo del bus il client ottiene l'account ed effettua il subscribe ai messaggi
+    // con la chiave di decifratura ci decifra il contenuto dei messaggi
+    // Questo deve farlo il client prendendo l'account dell'autobus a partire dall'indirizzo
   })
 }
 
@@ -244,32 +256,6 @@ app.post('/bus', async (req, res) => {
 })
 
 // -------------- ADMIN --------------
-// Subscribe to bus line
-app.post('/subscribe', (req, res) => {
-  // Create token
-  const tokenUri = req.body.tokenUri
-  const address = req.body.address
-
-  const purchaser = RadixAccount.fromAddress(address)
-
-  const tokenRRI = new RRI(identity.address, tokenUri)
-
-  // Mint a new bus token
-  RadixTransactionBuilder.createMintAtom(identity.account, tokenRRI, 1)
-  .signAndSubmit(identity)
-  .subscribe({complete: () => {
-    // Send the bus token
-    RadixTransactionBuilder.createTransferAtom(identity.account, purchaser, tokenRRI, 1)
-      .signAndSubmit(identity)
-      .subscribe({
-        complete: () => {
-          console.log('Bus was purchased')
-          res.send('Done')
-        }
-      })
-  }})
-})
-
 // Add a bus
 app.post('/add-bus', async (req, res) => {
   // Create token

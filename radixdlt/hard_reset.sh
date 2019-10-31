@@ -15,3 +15,7 @@ wait
 wait
 mongo radflix --eval "db.buses.drop();"
 wait
+mongo radflix --eval "db.purchases.drop();"
+wait
+mongo radflix --eval "db.accessrequests.drop();"
+wait

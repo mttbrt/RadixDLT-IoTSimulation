@@ -31,14 +31,6 @@ async function main() {
   radixToken = radixUniverse.nativeToken
 
   await createServerIdentity()
-
-
-
-  // TODO il server inoltra al client indirizzo del bus e chiave di decifratura.
-  // con l'indirizzo del bus il client ottiene l'account ed effettua il subscribe ai messaggi
-  // con la chiave di decifratura ci decifra il contenuto dei messaggi
-  // Questo deve farlo il client prendendo l'account dell'autobus a partire dall'indirizzo
-
 }
 
 async function createServerIdentity() {
@@ -64,12 +56,10 @@ async function createServerIdentity() {
   }
 
   console.log("Address: " + clientIdentity.address.getAddress())
-  await getMoney()
-}
 
-async function getMoney() {
-  const faucetAccount = RadixAccount.fromAddress('JH1P8f3znbyrDj8F4RWpix7hRkgxqHjdW2fNnKpR3v6ufXnknor', true)
-  const message = 'Gimme my money'
+  // Get money from faucet
+  const faucetAccount = RadixAccount.fromAddress('JH1P8f3znbyrDj8F4RWpix7hRkgxqHjdW2fNnKpR3v6ufXnknor')
+  const message = 'Send me 10 RDX please'
   RadixTransactionBuilder.createRadixMessageAtom(clientIdentity.account, faucetAccount, message).signAndSubmit(clientIdentity)
 
   clientIdentity.account.transferSystem.getTokenUnitsBalanceUpdates().subscribe(balance => {

@@ -60,7 +60,7 @@ async function runSimulation() {
 async function updateBusPosition(busId, lat, lng) {
   const busIndex = BUS_IDS.indexOf(busId)
 
-  // TODO cifrare il messaggio con una chiave
+  // TODO cifrare il messaggio con una chiave (ogni bus ha una chiave diversa, il server le ha tutte)
   const message = JSON.stringify({
     message: 'Coordinates bus: ' + busId,
     data: {
