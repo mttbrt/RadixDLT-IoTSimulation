@@ -11,8 +11,7 @@ import crypto from 'crypto'
 const app: express.Application = express();
 const port: number = Number(process.env.PORT) || 3001;
 
-const key: string = crypto.randomBytes(32).toString('hex');
-const iv: string = crypto.randomBytes(16).toString('hex');
+let busKeys: { [bus_id: string]: string }
 
 app.use(cors())
 app.use(bodyParser.json())
@@ -26,9 +25,11 @@ connectDb()
   return loadIdentity()
 }).then(_identity => {
   identity = _identity
-  uploadBusKeys()
+  busKeys = JSON.parse(fs.readFileSync('bus_keys.json', 'utf8'));
   subscribeForPurchases()
   subscribeForMessages()
+
+  //addBuses()
 
   app.listen(port, (err: Error) => {
     if (err) {
@@ -72,9 +73,7 @@ async function loadIdentity() {
 
 // Buying a bus
 function subscribeForPurchases() {
-  // TODO Errore ripete due volte il refund
   identity.account.transferSystem.transactionSubject.subscribe(async (txUpdate) => {
-    console.log("STONKS")
     if (!txUpdate.transaction) {
       return
     }
@@ -128,21 +127,18 @@ function subscribeForPurchases() {
 
 // Bus position update
 function subscribeForMessages() {
+  console.log(identity.account.address)
   identity.account.messagingSystem.messageSubject.subscribe(messageUpdate => {
-    var cip = encrypt(messageUpdate.message.content)
-    console.log(cip)
-    console.log(decrypt(cip))
-    // TODO Salvare le nuove posizioni degli autobus aggiornando la busPos nel database
+    const busId = JSON.parse(messageUpdate.message.content).message.split(" ")[1];
+    const busKey = busKeys[busId];
 
-    // Il server inoltra al client indirizzo del bus e chiave di decifratura.
-    // con l'indirizzo del bus il client ottiene l'account ed effettua il subscribe ai messaggi
-    // con la chiave di decifratura ci decifra il contenuto dei messaggi
-    // Questo deve farlo il client prendendo l'account dell'autobus a partire dall'indirizzo
+    /* TODO
+     * Il server memorizza per ogni linea di bus l'ultima posizione aggiornata CIFRATA
+     * e quando un client chiede la posizione di un bus gli ritorna il valore cifrato della posizione
+     * sarà poi il client a decifrare la posizione con la chiave acquistata e memorizzare le varie posizioni
+     * per ricostruire eventualmente il percorso (lo storico)
+    */
   })
-}
-
-function uploadBusKeys() {
-  // TODO read bus_keys.json file and store it in a variable
 }
 
 // Get an account
@@ -171,30 +167,62 @@ const getAccount = async function(address: string) {
   return account
 }
 
-function encrypt(text: string) {
-  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-
-  return encrypted.toString('hex');
+function addBuses() {
+  addBus("Bus 110", "B110", "Updates on bus line 110 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["110"]), 1);
+  addBus("Bus 226", "B226", "Updates on bus line 226 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["226"]), 1);
+  addBus("Bus 371", "B371", "Updates on bus line 371 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["371"]), 1);
+  addBus("Bus 422", "B422", "Updates on bus line 422 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["422"]), 1);
+  addBus("Bus 426", "B426", "Updates on bus line 426 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["426"]), 1);
+  addBus("Bus 484", "B484", "Updates on bus line 484 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["484"]), 1);
+  addBus("Bus 512", "B512", "Updates on bus line 512 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["512"]), 1);
+  addBus("Bus 639", "B639", "Updates on bus line 639 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["639"]), 1);
+  addBus("Bus 650", "B650", "Updates on bus line 650 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["650"]), 1);
+  addBus("Bus 889", "B889", "Updates on bus line 889 position", "https://image.freepik.com/free-icon/bus_318-2038.jpg", JSON.stringify(busKeys["889"]), 1);
 }
 
-function decrypt(text: string) {
-  let encryptedText = Buffer.from(text, 'hex');
-  let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
-  let decrypted = decipher.update(encryptedText);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
+// Create bus token
+function addBus(busName: string, busSymbol: string, busDescription: string, busIcon: string, busSecret: string, busPrice: number) {
+  const uri = new RRI(identity.address, busSymbol)
 
-  return decrypted.toString();
+  try {
+    new RadixTransactionBuilder().createTokenMultiIssuance(
+      identity.account,
+      busName,
+      busSymbol,
+      busDescription,
+      1,
+      1,
+      busIcon
+    ).signAndSubmit(identity)
+    .subscribe({
+      complete:  async () => {
+        // Create DB entry
+        const bus = new models.Bus({
+          tokenUri: uri.toString(),
+          name: busName,
+          description: busDescription,
+          price: busPrice,
+          iconUrl: busIcon,
+          busSecret: busSecret
+        })
+
+        await bus.save()
+      }, error: (e) => {
+        console.log(e)
+        throw new Error(`Error submitting token creation transaction`)
+      }
+    })
+  } catch(e) {
+    throw new Error(`Error creating token`)
+  }
 }
-
 
 app.get('/', (req, res) => res.send(`Radibus`))
 
 // -------------- ROUTES --------------
 // Get all buses
 app.get('/buses', async (req, res) => {
-  models.Bus.find({}, '-busPos', (err, buses) => {
+  models.Bus.find({}, '-busSecret', (err, buses) => {
     if (err) {
       res.status(400).send(err)
       return
@@ -276,55 +304,4 @@ app.post('/bus', async (req, res) => {
   }
 
   res.send(bus)
-})
-
-// -------------- ADMIN --------------
-// Add a bus
-app.post('/add-bus', async (req, res) => {
-  // Create token
-  const name = req.body['name']
-  const symbol = req.body['symbol']
-  const description = req.body['description']
-  const iconUrl = req.body['iconUrl']
-  const busPos = req.body['busPos']
-  const price = req.body['price'] ? parseFloat(req.body['price']) : 1
-
-  const uri = new RRI(identity.address, symbol)
-
-  try {
-    new RadixTransactionBuilder().createTokenMultiIssuance(
-      identity.account,
-      name,
-      symbol,
-      description,
-      1,
-      1,
-      iconUrl,
-    ).signAndSubmit(identity)
-    .subscribe({
-      next: status => {
-        console.log(status)
-      },
-      complete:  async () => {
-        // Create DB entry
-        const bus = new models.Bus({
-          tokenUri: uri.toString(),
-          name,
-          description,
-          price,
-          iconUrl,
-          busPos
-        })
-
-        await bus.save()
-
-        res.send(uri)
-      }, error: (e) => {
-        console.log(e)
-        res.status(400).send(e)
-      }
-    })
-  } catch(e) {
-    res.status(400).send(e.message)
-  }
 })

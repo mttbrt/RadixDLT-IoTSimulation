@@ -1,3 +1,5 @@
+const fs = require('fs')
+const crypto = require('crypto')
 const radixdlt = require('radixdlt')
 const readlines = require('n-readlines')
 const request = require('request')
@@ -18,6 +20,7 @@ const BUS_IDS = [ '226', '371', '422', '426', '484', '512', '639', '650' ]
 const BUS_IDENTITIES = [], BUS_ACCOUNTS = []
 var MASTER_ACCOUNT
 
+var busKeys
 var clientIdentity
 
 function sleep(ms) {
@@ -37,6 +40,8 @@ async function createBusesIdentities() {
 
     console.log("Bus " + BUS_IDS[i] + " with address: " + BUS_IDENTITIES[i].address.getAddress());
   }
+
+  busKeys = JSON.parse(fs.readFileSync('bus_keys.json', 'utf8'));
 }
 
 async function runSimulation() {
@@ -60,15 +65,16 @@ async function runSimulation() {
 async function updateBusPosition(busId, lat, lng) {
   const busIndex = BUS_IDS.indexOf(busId)
 
-  // TODO cifrare il messaggio con una chiave (ogni bus ha una chiave diversa, il server le ha tutte)
+  busKey = busKeys[busId]
+  const encData = encrypt(JSON.stringify({
+    latitude: lat,
+    longitude: lng,
+    timestampISO: new Date().toISOString()
+  }), busKey["key"], busKey["iv"])
+
   const message = JSON.stringify({
-    message: 'Coordinates bus: ' + busId,
-    data: {
-      busId: busId,
-      latitude: lat,
-      longitude: lng,
-      timestampISO: new Date().toISOString()
-    }
+    message: 'Bus ' + busId,
+    data: encData
   })
 
   var transactionStatus = null
@@ -91,6 +97,14 @@ async function updateBusPosition(busId, lat, lng) {
       console.log(error);
     }
   })
+}
+
+function encrypt(text, key, iv) {
+  var cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
+  var encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+
+  return encrypted.toString('hex');
 }
 
 async function main() {

@@ -24,6 +24,7 @@ const APPLICATION_ID = 'methk'
 var radixToken
 var clientIdentity
 var clientBalance
+var purchasedKeys = []
 
 main()
 async function main() {
@@ -68,6 +69,15 @@ async function createServerIdentity() {
   })
 }
 
+function decrypt(text: string, key: string, iv: string) {
+  let encryptedText = Buffer.from(text, 'hex');
+  let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+  return decrypted.toString();
+}
+
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname + '/GUI/index.html'));
@@ -110,9 +120,23 @@ app.get('/bus', (req, res) => {
                         atom: atom.toJSON()
                       })
             },  function (error, response, body) {
-                  if (!error && response.statusCode == 200)
-                    res.json(JSON.parse(response.body))
-                  else
+                  if (!error && response.statusCode == 200) {
+                    var resJson = JSON.parse(response.body)
+                    var busId = resJson.name.split(" ")[1]
+
+                    var flag = true
+                    for (var i = 0; i < purchasedKeys.length; i++) {
+                      if(purchasedKeys[i].busId == busId)
+                        flag = false
+                    }
+                    if(flag)
+                      purchasedKeys.push({
+                        busId: busId,
+                        data: JSON.parse(resJson.busSecret)
+                      })
+
+                    res.json(resJson)
+                  } else
                     res.send(response.body)
             })
           })
@@ -137,54 +161,6 @@ app.get('/subscribe', (req, res) => {
     })
   } else
     res.send('Insufficient funds')
-})
-
-// -------------- ADMIN --------------
-app.get('/add-bus', (req, res) => {
-  var bus_name = "A2"
-  var bus_token_symbol = "A2"
-  var bus_description = "A2"
-  var bus_icon_url = "https://image.flaticon.com/icons/svg/61/61985.svg"
-  var bus_pos = "secret"
-  var bus_price = "1"
-
-  request.post({
-      headers: { 'content-type': 'application/json' },
-      url: 'http://localhost:3001/add-bus',
-      body: JSON.stringify({
-              name : bus_name,
-              symbol: bus_token_symbol,
-              description: bus_description,
-              price : bus_price,
-              iconUrl : bus_icon_url,
-              busPos : bus_pos
-            })
-  },  function (error, response, body) {
-        if (!error && response.statusCode == 200)
-          res.send(response.body)
-        else
-          res.send(response.body)
-  })
-
-  /*
-  request.post({
-      headers: { 'content-type': 'application/json' },
-      url: 'http://localhost:3001/add-bus',
-      body: JSON.stringify({
-              name : req.body.bus_name,
-              symbol: req.body.bus_token_symbol,
-              description: req.body.bus_description,
-              posterUrl : req.body.bus_icon_url,
-              contentUrl : req.body.bus_url,
-              price : req.body.bus_price
-            })
-  },  function (error, response, body) {
-        if (!error && response.statusCode == 200)
-          res.send(response.body)
-        else
-          res.send(response.body)
-  })
-  */
 })
 
 app.listen(PORT, () => console.log(`Client app listening on port ${PORT}!`))
