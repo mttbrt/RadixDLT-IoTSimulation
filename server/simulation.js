@@ -15,8 +15,8 @@ const identityManager = new RadixIdentityManager()
 const csvReader = new readlines('data/dataset.csv')
 
 const APPLICATION_ID = 'methk'
-// const BUS_IDS = [ '110', '226', '371', '422', '426', '484', '512', '639', '650', '889' ]
-const BUS_IDS = [ '226', '371', '422', '426', '484', '512', '639', '650' ]
+const BUS_IDS = [ '110', '226', '371', '422', '426', '484', '512', '639', '650', '889' ]
+// const BUS_IDS = [ '226', '371', '422', '426', '484', '512', '639', '650' ]
 const BUS_IDENTITIES = [], BUS_ACCOUNTS = []
 var MASTER_ACCOUNT
 

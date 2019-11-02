@@ -3,6 +3,7 @@ const request = require('request')
 const radixdlt = require('radixdlt')
 const express = require('express')
 const path = require('path')
+const crypto = require('crypto')
 
 const app = express()
 
@@ -69,7 +70,7 @@ async function createServerIdentity() {
   })
 }
 
-function decrypt(text: string, key: string, iv: string) {
+function decrypt(text, key, iv) {
   let encryptedText = Buffer.from(text, 'hex');
   let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
   let decrypted = decipher.update(encryptedText);
@@ -77,6 +78,7 @@ function decrypt(text: string, key: string, iv: string) {
 
   return decrypted.toString();
 }
+
 
 
 app.get('/', (req, res) => {
@@ -88,10 +90,7 @@ app.get('/buses', (req, res) => {
       headers: { 'content-type': 'application/json' },
       url: 'http://localhost:3001/buses'
   },  function (error, response, body) {
-        if (!error && response.statusCode == 200)
-          res.json(JSON.parse(body))
-        else
-          res.send(error)
+        res.json(JSON.parse(body))
   })
 })
 
@@ -120,8 +119,8 @@ app.get('/bus', (req, res) => {
                         atom: atom.toJSON()
                       })
             },  function (error, response, body) {
-                  if (!error && response.statusCode == 200) {
-                    var resJson = JSON.parse(response.body)
+                  if (!error && response.statusCode == 200 && JSON.parse(response.body).success == 1) {
+                    var resJson = JSON.parse(response.body).data
                     var busId = resJson.name.split(" ")[1]
 
                     var flag = true
@@ -135,13 +134,16 @@ app.get('/bus', (req, res) => {
                         data: JSON.parse(resJson.busSecret)
                       })
 
-                    res.json(resJson)
+                    res.json(JSON.parse(response.body))
                   } else
-                    res.send(response.body)
+                    res.json(JSON.parse(response.body))
             })
           })
         } else
-          console.error(error)
+          res.json({
+            success: 0,
+            data: 'Cannot contact the server.'
+          })
   })
 })
 
@@ -154,13 +156,51 @@ app.get('/subscribe', (req, res) => {
       .signAndSubmit(clientIdentity)
 
     transactionStatus.subscribe({
-      complete: () => {
-        console.log('Successfully paid 2 RDX')
-      },
-      error: error => { console.error('Error submitting transaction', error) }
+      complete: () => { return res.json({
+        success: 1,
+        data: 'Successfully paid 2 RDX for bus line subscription.'
+      }) },
+      error: error => { return res.json({
+        success: 0,
+        data: 'Error submitting transaction.'
+      }) }
     })
   } else
-    res.send('Insufficient funds')
+    res.json({
+      success: 0,
+      data: 'Insufficient funds.'
+    })
+})
+
+app.get('/position', (req, res) => {
+  request.post({
+      headers: { 'content-type': 'application/json' },
+      url: 'http://localhost:3001/position',
+      body: JSON.stringify({ id: req.query.id })
+  },  function (error, response, body) {
+        if (!error && response.statusCode == 200 && JSON.parse(response.body).success == 1) {
+          var obj = JSON.parse(response.body).data
+          var busId = obj.message.split(" ")[1]
+
+          for (var i = 0; i < purchasedKeys.length; i++) {
+            if(purchasedKeys[i].busId == busId) {
+              return res.json({
+                success: 1,
+                data: JSON.parse(decrypt(obj.data, purchasedKeys[i].data.key, purchasedKeys[i].data.iv))
+              })
+            }
+          }
+
+          res.json({
+            success: 0,
+            data: 'Key not purchased.'
+          })
+        } else
+          res.json({
+            success: 0,
+            data: 'Error getting bus position.'
+          })
+  })
 })
 
 app.listen(PORT, () => console.log(`Client app listening on port ${PORT}!`))

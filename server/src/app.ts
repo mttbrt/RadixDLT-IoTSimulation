@@ -11,6 +11,7 @@ import crypto from 'crypto'
 const app: express.Application = express();
 const port: number = Number(process.env.PORT) || 3001;
 
+let busPositions: { "message": string, "data": string }[] = []
 let busKeys: { [bus_id: string]: string }
 
 app.use(cors())
@@ -29,7 +30,7 @@ connectDb()
   subscribeForPurchases()
   subscribeForMessages()
 
-  //addBuses()
+  addBuses()
 
   app.listen(port, (err: Error) => {
     if (err) {
@@ -127,17 +128,20 @@ function subscribeForPurchases() {
 
 // Bus position update
 function subscribeForMessages() {
-  console.log(identity.account.address)
   identity.account.messagingSystem.messageSubject.subscribe(messageUpdate => {
-    const busId = JSON.parse(messageUpdate.message.content).message.split(" ")[1];
-    const busKey = busKeys[busId];
+    const content = JSON.parse(messageUpdate.message.content);
+    const id = JSON.parse(messageUpdate.message.content).message.split(" ")[1];
 
-    /* TODO
-     * Il server memorizza per ogni linea di bus l'ultima posizione aggiornata CIFRATA
-     * e quando un client chiede la posizione di un bus gli ritorna il valore cifrato della posizione
-     * sarà poi il client a decifrare la posizione con la chiave acquistata e memorizzare le varie posizioni
-     * per ricostruire eventualmente il percorso (lo storico)
-    */
+    // Update bus line content
+    var flag = true
+    for(var i = 0; i < busPositions.length; i++)
+      if(busPositions[i].message.split(" ")[1] == id) {
+        flag = false
+        busPositions[i] = content
+      }
+
+    if(flag)
+      busPositions.push(content)
   })
 }
 
@@ -152,12 +156,9 @@ const getAccount = async function(address: string) {
     await account.openNodeConnection()
   }
 
-  console.log('got account')
-
   // Wait for the account to be synced
   await account.isSynced()
     .filter(val => {
-      console.log('synced', val)
       return val
     })
     // .take(1)
@@ -217,18 +218,24 @@ function addBus(busName: string, busSymbol: string, busDescription: string, busI
   }
 }
 
-app.get('/', (req, res) => res.send(`Radibus`))
+app.get('/', (req, res) => res.send(`Radibus server`))
 
 // -------------- ROUTES --------------
 // Get all buses
 app.get('/buses', async (req, res) => {
   models.Bus.find({}, '-busSecret', (err, buses) => {
     if (err) {
-      res.status(400).send(err)
+      res.status(400).json({
+        success: 0,
+        data: 'An error occured while reading buses in database.'
+      })
       return
     }
 
-    res.send(buses)
+    res.json({
+      success: 1,
+      data: buses
+    })
   })
 })
 
@@ -247,7 +254,6 @@ app.get('/request-access', async (req, res) => {
 
 // Access a resource (signed(address, challenge), tokenId)
 app.post('/bus', async (req, res) => {
-  console.log('Requesting access to bus line')
   const serializedAtom = req.body.atom
   const busTokenUri = new RRI(identity.address, req.body.busTokenUri)
 
@@ -258,11 +264,12 @@ app.post('/bus', async (req, res) => {
 
   // Check signature
   if (!from.verify(atom.getHash(), atom.signatures[from.getUID().toString()])) {
-    res.status(400).send('Signature verification failed')
+    res.status(400).json({
+      success: 0,
+      data: 'Signature verification failed'
+    })
     throw new Error('Signature verification failed')
   }
-
-  console.log('Signature ok')
 
   const query = {
     id: data.challenge
@@ -271,37 +278,64 @@ app.post('/bus', async (req, res) => {
   // Check challenge
   const document = await models.AccessRequest.findOne(query).exec()
   if (!document || document.get('consumed')) {
-    res.status(400).send('Invalid challenge')
+    res.status(400).json({
+      success: 0,
+      data: 'Invalid challenge'
+    })
     throw new Error('Invalid challenge')
   }
-
-  console.log('challenge ok')
 
   document.set('consumed', true)
   await document.save()
 
   // Check ownership
   const account = await getAccount(from.toString())
-  console.log('got synced account')
   const balance = account.transferSystem.balance
   console.log(balance)
 
   // If don't have any bus tokens
   if(!(busTokenUri.toString() in balance) || balance[busTokenUri.toString()].ltn(1)) {
-    res.status(400).send(`Don't own the subscription`)
+    res.status(400).json({
+      success: 0,
+      data: `Don't own the subscription`
+    })
     throw new Error(`Don't own the subscription`)
   }
-
-  console.log('Subscription owned')
 
   const bus = await models.Bus.findOne({
     tokenUri: busTokenUri.toString()
   }).exec()
 
   if(!bus) {
-    res.status(400).send(`Bus line doesn't exist`)
+    res.status(400).json({
+      success: 0,
+      data: `Bus line doesn't exist`
+    })
     throw new Error(`Bus line doesn't exist`)
   }
 
-  res.send(bus)
+  res.json({
+    success: 1,
+    data: bus
+  })
+})
+
+// Access a bus position
+app.post('/position', async (req, res) => {
+  const busId = req.body.id
+
+  // Update bus line content
+  for(var i = 0; i < busPositions.length; i++)
+    if(busPositions[i].message.split(" ")[1] == busId) {
+      res.json({
+        success: 1,
+        data: busPositions[i]
+      })
+      return
+    }
+
+  res.json({
+    success: 0,
+    data: 'Bus not found'
+  })
 })
