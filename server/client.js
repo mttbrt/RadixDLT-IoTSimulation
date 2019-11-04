@@ -25,6 +25,7 @@ const APPLICATION_ID = 'methk'
 var radixToken
 var clientIdentity
 var clientBalance
+var clientCompleteBalance
 var purchasedKeys = []
 
 main()
@@ -65,6 +66,7 @@ async function createServerIdentity() {
   RadixTransactionBuilder.createRadixMessageAtom(clientIdentity.account, faucetAccount, message).signAndSubmit(clientIdentity)
 
   clientIdentity.account.transferSystem.getTokenUnitsBalanceUpdates().subscribe(balance => {
+    clientCompleteBalance = balance
     clientBalance = parseInt(balance[radixToken.toString()])
     console.log(balance)
   })
@@ -83,6 +85,13 @@ function decrypt(text, key, iv) {
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname + '/GUI/index.html'));
+})
+
+app.get('/balance', (req, res) => {
+  res.json({
+    success: 1,
+    data: clientCompleteBalance
+  })
 })
 
 app.get('/buses', (req, res) => {
@@ -142,41 +151,40 @@ app.get('/bus', (req, res) => {
         } else
           res.json({
             success: 0,
-            data: 'Cannot contact the server.'
+            data: 'cannot contact the server.'
           })
   })
 })
 
 app.get('/subscribe', (req, res) => {
-  const busAccount = RadixAccount.fromAddress('JHvbGGm3hxUaQ733ZVeqYDKhAhSEF3fZJXm3MQNWDea1ie7sVem', true)
+  const serverAccount = RadixAccount.fromAddress('JHvbGGm3hxUaQ733ZVeqYDKhAhSEF3fZJXm3MQNWDea1ie7sVem', true)
 
   if(clientBalance >= 2) {
     const transactionStatus = RadixTransactionBuilder
-      .createTransferAtom(clientIdentity.account, busAccount, radixToken, 2, req.query.id)
+      .createTransferAtom(clientIdentity.account, serverAccount, radixToken, 2, req.query.id)
       .signAndSubmit(clientIdentity)
 
     transactionStatus.subscribe({
       complete: () => { return res.json({
         success: 1,
-        data: 'Successfully paid 2 RDX for bus line subscription.'
+        data: 'successfully paid 2 RDX for bus line subscription.'
       }) },
       error: error => { return res.json({
         success: 0,
-        data: 'Error submitting transaction.'
+        data: 'error submitting transaction.'
       }) }
     })
   } else
     res.json({
       success: 0,
-      data: 'Insufficient funds.'
+      data: 'insufficient funds.'
     })
 })
 
 app.get('/position', (req, res) => {
-  request.post({
+  request.get({
       headers: { 'content-type': 'application/json' },
-      url: 'http://localhost:3001/position',
-      body: JSON.stringify({ id: req.query.id })
+      url: 'http://localhost:3001/position?id=' + req.query.id
   },  function (error, response, body) {
         if (!error && response.statusCode == 200 && JSON.parse(response.body).success == 1) {
           var obj = JSON.parse(response.body).data
@@ -193,12 +201,12 @@ app.get('/position', (req, res) => {
 
           res.json({
             success: 0,
-            data: 'Key not purchased.'
+            data: 'key not purchased.'
           })
         } else
           res.json({
             success: 0,
-            data: 'Error getting bus position.'
+            data: 'error getting bus position.'
           })
   })
 })

@@ -30,7 +30,7 @@ connectDb()
   subscribeForPurchases()
   subscribeForMessages()
 
-  addBuses()
+  // addBuses()
 
   app.listen(port, (err: Error) => {
     if (err) {
@@ -321,8 +321,8 @@ app.post('/bus', async (req, res) => {
 })
 
 // Access a bus position
-app.post('/position', async (req, res) => {
-  const busId = req.body.id
+app.get('/position', async (req, res) => {
+  const busId = req.query.id
 
   // Update bus line content
   for(var i = 0; i < busPositions.length; i++)
