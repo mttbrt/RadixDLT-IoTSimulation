@@ -30,7 +30,7 @@ connectDb()
   subscribeForPurchases()
   subscribeForMessages()
 
-  // addBuses()
+  addBuses()
 
   app.listen(port, (err: Error) => {
     if (err) {
